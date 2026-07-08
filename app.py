@@ -1,87 +1,91 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 
 # Page Config
-st.set_page_config(page_title="Synthetic Mindset Explorer", layout="wide")
+st.set_page_config(page_title="Synthetic Mindset Engine", layout="wide")
 st.title("Synthetic Mindset Engine 🧠")
+st.markdown("Upload raw survey data to dynamically generate Simmons-style strategic crosstabs.")
 
-# 1. Mock Data Generator (Replace with your pd.read_csv logic later)
-@st.cache_data
-def load_data():
-    np.random.seed(42)
-    n = 1000
-    data = pd.DataFrame({
-        'Respondent_ID': range(1, n + 1),
-        'Mindset': np.random.choice(['The Vanguard', 'The Pragmatist', 'The Traditionalist'], n, p=[0.2, 0.5, 0.3]),
-        'Age_Cohort': np.random.choice(['Gen Z', 'Millennial', 'Gen X'], n),
-        'Weight': np.random.uniform(0.8, 1.2, n) # Simulated survey weighting
-    })
-    return data
+# 1. File Uploader in Sidebar
+st.sidebar.header("1. Data Ingestion")
+uploaded_file = st.sidebar.file_uploader("Upload Survey Data (CSV or Excel)", type=['csv', 'xlsx'])
 
-df = load_data()
+# 2. Main Logic Execution
+if uploaded_file is not None:
+    # Read file based on extension
+    try:
+        if uploaded_file.name.endswith('.csv'):
+            df = pd.read_csv(uploaded_file)
+        else:
+            df = pd.read_excel(uploaded_file)
+            
+        st.sidebar.success("Data loaded successfully!")
+    except Exception as e:
+        st.error(f"Error loading file: {e}")
+        st.stop()
 
-# 2. Sidebar Controls
-st.sidebar.header("Crosstab Configuration")
-row_var = st.sidebar.selectbox("Select Row (Target)", ['Age_Cohort'])
-col_var = st.sidebar.selectbox("Select Column (Mindset)", ['Mindset'])
-
-# 3. The Core Simmons Math Engine
-def calculate_simmons_crosstab(df, row, col, weight_col='Weight'):
-    # Base weighted counts
-    crosstab = pd.crosstab(df[row], df[col], values=df[weight_col], aggfunc='sum', margins=True, margins_name='Total')
+    # 3. Dynamic Column Selection
+    st.sidebar.header("2. Crosstab Configuration")
+    columns = df.columns.tolist()
     
-    # Calculate Metrics
-    results = {}
-    for column in crosstab.columns:
-        if column != 'Total':
-            # Weighted Count
-            count = crosstab[column]
-            # Vertical % (Column %)
-            vert_pct = (count / crosstab.loc['Total', column]) * 100
-            # Horizontal % (Row %)
-            horz_pct = (count / crosstab['Total']) * 100
-            # Index Calculation: (Vertical % / Total Population %) * 100
-            pop_pct = (crosstab['Total'] / crosstab.loc['Total', 'Total']) * 100
-            index = (vert_pct / pop_pct) * 100
+    row_var = st.sidebar.selectbox("Select Row (e.g., Target Demographic)", columns)
+    col_var = st.sidebar.selectbox("Select Column (e.g., Mindset Segment)", columns)
+    
+    weight_options = ['None (Unweighted)'] + columns
+    weight_var = st.sidebar.selectbox("Select Survey Weight (Optional)", weight_options)
+
+    # 4. The Simmons Math Engine
+    if st.button("Generate Strategic Crosstab"):
+        # Apply weighting logic
+        if weight_var == 'None (Unweighted)':
+            df['_Weight'] = 1
+            weight_col = '_Weight'
+        else:
+            weight_col = weight_var
             
-            # Formatting the output block for this column
-            results[column] = pd.DataFrame({
-                'Weighted (000)': count.round(0),
-                'Vert %': vert_pct.round(1),
-                'Horz %': horz_pct.round(1),
-                'Index': index.round(0)
-            })
-            
-    # Concatenate side-by-side with MultiIndex columns
-    final_table = pd.concat(results.values(), axis=1, keys=results.keys())
-    # Drop the "Total" row to clean up the view
-    return final_table.drop('Total', errors='ignore')
+        # Base Crosstab Calculation
+        crosstab = pd.crosstab(
+            df[row_var], 
+            df[col_var], 
+            values=df[weight_col], 
+            aggfunc='sum', 
+            margins=True, 
+            margins_name='Total'
+        )
+        
+        # Calculate Simmons Core Metrics
+        results = {}
+        for column in crosstab.columns:
+            if column != 'Total':
+                count = crosstab[column]
+                # Vertical % (Of the column, how many are in this row?)
+                vert_pct = (count / crosstab.loc['Total', column]) * 100
+                # Horizontal % (Of the row, how many are in this column?)
+                horz_pct = (count / crosstab['Total']) * 100
+                # Population % for Index baseline
+                pop_pct = (crosstab['Total'] / crosstab.loc['Total', 'Total']) * 100
+                # Index (Propensity)
+                index = (vert_pct / pop_pct) * 100
+                
+                results[column] = pd.DataFrame({
+                    'Size': count.round(0),
+                    'Vert %': vert_pct.round(1),
+                    'Horz %': horz_pct.round(1),
+                    'Index': index.round(0)
+                })
+        
+        # Format and display the final table
+        final_table = pd.concat(results.values(), axis=1, keys=results.keys())
+        # Drop the aggregate 'Total' row to keep the strategic view clean
+        final_table = final_table.drop('Total', errors='ignore')
+        
+        st.subheader(f"Analyzing: {row_var} by {col_var}")
+        
+        # Use st.dataframe for an interactive, scrollable, and sortable table
+        st.dataframe(final_table, use_container_width=True)
 
-# 4. UI Layout
-st.subheader(f"Quant Layer: {row_var} by {col_var}")
-quant_table = calculate_simmons_crosstab(df, row_var, col_var)
-st.dataframe(quant_table, use_container_width=True)
-
-st.divider()
-
-# 5. The Qualitative "Anthropology" Integration
-st.subheader("Qual Layer: Ethnography & Social Listening")
-st.markdown("*(This section dynamically updates based on the quantitative index anomalies above)*")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.info("**Online Anthropology (Social Listening)**")
-    st.markdown("""
-    * **Dominant Sentiment:** Frustrated but optimistic.
-    * **Key Verbatim:** "I want to try the new tech, but I don't want to feel like a beta tester for a massive corporation."
-    * **Cultural Signal:** Migration toward localized, closed-loop community platforms.
-    """)
-
-with col2:
-    st.success("**Journal Ethnography (In-Depth Insights)**")
-    st.markdown("""
-    * **Observed Behavior:** 'The Vanguard' mindset indexes highly with Gen Z (Index 142). Ethnographies reveal this isn't driven by wealth, but by a desire for *status signaling* through early adoption.
-    * **Friction Point:** High abandonment rate if the onboarding process feels corporate.
-    """)
+else:
+    # Empty State
+    st.info("Awaiting data. Please upload a CSV or Excel file in the sidebar to begin.")
+    st.write("### Expected Data Format")
+    st.write("Your file should be raw respondent-level data, where each row is a person and each column is a survey question, demographic marker, or assigned mindset.")
