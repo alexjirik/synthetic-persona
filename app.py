@@ -2,6 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import json
+import io
+
+# NEW LIBRARIES FOR UNIVERSAL INGESTION
+from PIL import Image
+import docx
+import PyPDF2
 
 st.set_page_config(page_title="Synthetic Mindset Engine", layout="wide")
 
@@ -63,6 +69,26 @@ def load_qual_json(file):
 def load_raw_text(file):
     return file.getvalue().decode("utf-8")
 
+# --- NEW UNIVERSAL DOCUMENT PARSER ---
+@st.cache_data
+def parse_document(file):
+    """Extracts text from TXT, DOCX, and PDF files."""
+    text = ""
+    try:
+        if file.name.endswith('.txt') or file.name.endswith('.md'):
+            text = file.getvalue().decode("utf-8")
+        elif file.name.endswith('.docx'):
+            doc = docx.Document(io.BytesIO(file.getvalue()))
+            text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+        elif file.name.endswith('.pdf'):
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file.getvalue()))
+            for page_num in range(len(pdf_reader.pages)):
+                page = pdf_reader.pages[page_num]
+                text += page.extract_text() + "\n"
+    except Exception as e:
+        return f"Error parsing document {file.name}: {e}"
+    return text
+
 @st.cache_data
 def generate_mock_data():
     np.random.seed(42)
@@ -110,17 +136,22 @@ raw_notes = ""
 with st.sidebar:
     st.header("1. Ingest Data Streams")
     
-    with st.expander("📊 Quantitative Survey Data", expanded=True):
-        quant_file = st.file_uploader("Upload Survey (CSV/Excel)", type=['csv', 'xlsx'])
+    with st.expander("📊 Tabular Data (Quant)", expanded=True):
+        st.caption("Upload Survey Data to power the Crosstab Engine.")
+        quant_file = st.file_uploader("Upload Data", type=['csv', 'xlsx', 'tsv', 'parquet'])
         use_mock = st.button("Use Mock Audience Data")
         
-    with st.expander("🧠 Structured Qualitative Profiles"):
+    with st.expander("🧠 Structured Data (Qual Profiles)"):
         st.caption("Upload JSON to update Mindset definitions.")
-        qual_json_file = st.file_uploader("Online Anthropology (JSON)", type=['json'])
+        qual_json_file = st.file_uploader("Upload JSON", type=['json'])
         
-    with st.expander("📓 Raw Ethnographic Notes"):
-        st.caption("Upload raw transcripts or journal entries.")
-        raw_txt_file = st.file_uploader("Journal Notes (TXT)", type=['txt'])
+    with st.expander("📓 Unstructured Text (Ethnography)"):
+        st.caption("Upload raw transcripts, journals, or field notes.")
+        raw_docs = st.file_uploader("Upload Documents", type=['txt', 'docx', 'pdf', 'md'], accept_multiple_files=True)
+
+    with st.expander("📸 Visual Evidence (Anthropology)"):
+        st.caption("Upload photos from the field or social listening screenshots.")
+        image_files = st.file_uploader("Upload Images", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
 
 # Process Data
 if use_mock:
@@ -147,6 +178,22 @@ if raw_txt_file is not None:
     except Exception as e:
         st.sidebar.error(f"TXT Error: {e}")
 
+# Process New Document Types
+doc_texts = {}
+if raw_docs:
+    for doc in raw_docs:
+        doc_texts[doc.name] = parse_document(doc)
+
+# Process Images
+uploaded_images = []
+if image_files:
+    for img_file in image_files:
+        try:
+            img = Image.open(img_file)
+            uploaded_images.append((img_file.name, img))
+        except Exception as e:
+            st.sidebar.error(f"Error loading image {img_file.name}: {e}")
+
 if df is not None:
     columns = df.columns.tolist()
 
@@ -157,8 +204,13 @@ if df is not None:
 
     if st.sidebar.button("Run Synthetic Analysis", type="primary"):
         
-        # We now have 3 tabs to accommodate the multi-format data
-        tab1, tab2, tab3 = st.tabs(["📊 Quant Crosstab (Simmons)", "🧠 The Synthetic Mindset (Qual)", "📓 Raw Ethnography"])
+        # We now have 4 tabs to accommodate the multi-format data
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📊 Quant Crosstab (Simmons)", 
+            "🧠 The Synthetic Mindset (Qual)", 
+            "📓 Raw Ethnography",
+            "📸 Visual Evidence"
+        ])
         
         with tab1:
             st.subheader(f"Profiling '{target_var}' against '{explore_var}'")
@@ -240,11 +292,25 @@ if df is not None:
 
         with tab3:
             st.subheader("Raw Ethnographic Transcripts & Journals")
-            if raw_notes:
+            if doc_texts:
+                for doc_name, text in doc_texts.items():
+                    with st.expander(f"📄 {doc_name}", expanded=False):
+                        st.text_area("Content", value=text, height=300, disabled=True, key=f"text_{doc_name}")
+            elif raw_notes: # Fallback for the older txt upload
                 st.text_area("Field Notes:", value=raw_notes, height=400, disabled=True)
                 st.caption("Data pulled from uploaded .txt files.")
             else:
-                st.info("No raw text files uploaded. Upload a .txt file in the sidebar to view transcripts here.")
+                st.info("No documents uploaded. Use the sidebar to upload TXT, DOCX, PDF, or MD files.")
+
+        with tab4:
+            st.subheader("Visual Anthropology & Field Photos")
+            if uploaded_images:
+                cols = st.columns(3) # Display in a 3-column grid
+                for i, (img_name, img) in enumerate(uploaded_images):
+                    with cols[i % 3]:
+                        st.image(img, caption=img_name, use_column_width=True)
+            else:
+                st.info("No images uploaded. Use the sidebar to upload PNG or JPG files.")
 
 else:
     st.info("Awaiting Data Upload in the Sidebar. (Or click 'Use Mock Audience Data')")
