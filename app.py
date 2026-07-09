@@ -215,15 +215,23 @@ if df is not None:
             # Utilize the cached math function
             final_table = compute_simmons_crosstab(df, target_var, explore_var, weight_col)
             
-            def color_index(val):
-                if pd.isna(val): return ''
-                color = '#27ae60' if val > 115 else '#c0392b' if val < 85 else 'inherit'
-                weight = 'bold' if val > 115 or val < 85 else 'normal'
-                return f'color: {color}; font-weight: {weight}'
+            # Flatten MultiIndex columns to avoid Streamlit Styler exceptions
+            final_table.columns = [f"{col[0]} | {col[1]}" for col in final_table.columns]
             
-            idx = pd.IndexSlice
-            # Changed .applymap() to .map() to support newer versions of pandas
-            styled_table = final_table.style.map(color_index, subset=idx[:, idx[:, 'Index']])
+            def color_index(val):
+                try:
+                    v = float(val)
+                    if pd.isna(v): return ''
+                    color = '#27ae60' if v > 115 else '#c0392b' if v < 85 else 'inherit'
+                    weight = 'bold' if v > 115 or v < 85 else 'normal'
+                    return f'color: {color}; font-weight: {weight}'
+                except (ValueError, TypeError):
+                    return ''
+            
+            # Target only the newly flattened 'Index' columns
+            index_cols = [col for col in final_table.columns if 'Index' in col]
+            styled_table = final_table.style.map(color_index, subset=index_cols)
+            
             st.dataframe(styled_table, use_container_width=True, height=400)
             st.caption("*Index > 115 indicates strong predisposition. Index < 85 indicates barrier.*")
 
