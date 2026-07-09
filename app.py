@@ -222,7 +222,8 @@ if df is not None:
                 return f'color: {color}; font-weight: {weight}'
             
             idx = pd.IndexSlice
-            styled_table = final_table.style.applymap(color_index, subset=idx[:, idx[:, 'Index']])
+            # Changed .applymap() to .map() to support newer versions of pandas
+            styled_table = final_table.style.map(color_index, subset=idx[:, idx[:, 'Index']])
             st.dataframe(styled_table, use_container_width=True, height=400)
             st.caption("*Index > 115 indicates strong predisposition. Index < 85 indicates barrier.*")
 
