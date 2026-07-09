@@ -131,7 +131,6 @@ st.markdown("<p class='big-font'>Fusing quantitative predispositions with qualit
 # Application State
 df = None
 active_mindset_db = DEFAULT_MINDSET_DATABASE.copy()
-raw_notes = ""
 
 with st.sidebar:
     st.header("1. Ingest Data Streams")
@@ -171,12 +170,6 @@ if qual_json_file is not None:
         st.sidebar.success("Updated Qualitative Profiles.")
     except Exception as e:
         st.sidebar.error(f"JSON Error: {e}")
-
-if raw_txt_file is not None:
-    try:
-        raw_notes = load_raw_text(raw_txt_file)
-    except Exception as e:
-        st.sidebar.error(f"TXT Error: {e}")
 
 # Process New Document Types
 doc_texts = {}
@@ -296,9 +289,6 @@ if df is not None:
                 for doc_name, text in doc_texts.items():
                     with st.expander(f"📄 {doc_name}", expanded=False):
                         st.text_area("Content", value=text, height=300, disabled=True, key=f"text_{doc_name}")
-            elif raw_notes: # Fallback for the older txt upload
-                st.text_area("Field Notes:", value=raw_notes, height=400, disabled=True)
-                st.caption("Data pulled from uploaded .txt files.")
             else:
                 st.info("No documents uploaded. Use the sidebar to upload TXT, DOCX, PDF, or MD files.")
 
