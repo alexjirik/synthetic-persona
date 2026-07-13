@@ -8,70 +8,81 @@ import docx
 import PyPDF2
 import google.generativeai as genai
 
-st.set_page_config(page_title="Roundpeg: Synthetic Mindset Engine", layout="wide")
+# ---------------------------------------------------------
+# PAGE CONFIG & ROUNDPEG BRAND STYLING
+# ---------------------------------------------------------
+st.set_page_config(page_title="Roundpeg: Synthetic Mindset Engine", page_icon="🎯", layout="wide")
 
 st.markdown("""
     <style>
     .big-font { font-size:18px !important; font-weight: 400; color: #555;}
     .mindset-card { background-color: #f8f9fa; padding: 20px; border-radius: 12px; border-left: 6px solid #FF6B6B; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px;}
-    .truth-header { color: #FF6B6B; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; font-size: 12px; margin-bottom: 5px; }
+    .truth-header { color: #FF6B6B; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; font-size: 14px; margin-bottom: 8px; }
     .metric-container { background-color: #ffffff; border: 1px solid #e0e0e0; padding: 15px; border-radius: 8px; text-align: center; }
     .status-dot { height: 10px; width: 10px; background-color: #27ae60; border-radius: 50%; display: inline-block; }
-    .glass-panel { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); backdrop-filter: blur(5px); }
-    .editorial-hero-sub { font-size: 12px; font-weight: 600; text-transform: uppercase; color: #888; margin-top: 8px; margin-bottom: 2px; letter-spacing: 1px; }
     </style>
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# CACHED DATA LOADERS (Speed Optimization)
+# CACHED DATA LOADERS (Optimized for Speed)
 # ---------------------------------------------------------
-
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def load_quant_data(file):
+    """Loads Survey Data from CSV or Excel safely."""
     if file.name.endswith('.csv'):
         return pd.read_csv(file)
     else:
         return pd.read_excel(file)
 
-@st.cache_data
-def load_qual_json(file):
-    return json.load(file)
-
-@st.cache_data
-def parse_document(file):
-    """Extracts text from TXT, DOCX, and PDF files."""
+@st.cache_data(show_spinner=False)
+def parse_document(file_bytes, file_name):
+    """Universal parser for Ethnography and Interview transcripts."""
     text = ""
     try:
-        if file.name.endswith('.txt') or file.name.endswith('.md'):
-            text = file.getvalue().decode("utf-8")
-        elif file.name.endswith('.docx'):
-            doc = docx.Document(io.BytesIO(file.getvalue()))
+        if file_name.endswith('.txt') or file_name.endswith('.md'):
+            text = file_bytes.decode("utf-8")
+        elif file_name.endswith('.docx'):
+            doc = docx.Document(io.BytesIO(file_bytes))
             text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
-        elif file.name.endswith('.pdf'):
-            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file.getvalue()))
-            for page_num in range(len(pdf_reader.pages)):
-                page = pdf_reader.pages[page_num]
-                text += page.extract_text() + "\n"
+        elif file_name.endswith('.pdf'):
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+            for page in pdf_reader.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
     except Exception as e:
-        return f"Error parsing document {file.name}: {e}"
+        return f"[Error parsing {file_name}: {e}]"
     return text
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def generate_mock_data():
+    """Generates 4,000 mock respondents for testing the engine without data."""
     np.random.seed(42)
     n = 4000
     return pd.DataFrame({
         'Respondent_ID': range(1, n + 1),
-        'Mindset_Segment': np.random.choice(['Moment Makers', 'Expressive Escapists', 'Green Mindset', 'Yellow Mindset', 'Blue Mindset'], n, p=[0.25, 0.15, 0.20, 0.10, 0.30]),
+        'Mindset_Segment': np.random.choice(
+            ['Moment Makers', 'Expressive Escapists', 'Green Mindset', 'Yellow Mindset', 'Blue Mindset'], 
+            n, p=[0.25, 0.15, 0.20, 0.10, 0.30]
+        ),
         'Generation': np.random.choice(['Gen Z', 'Millennial', 'Gen X', 'Boomer+'], n, p=[0.15, 0.40, 0.25, 0.20]),
         'Income_Bracket': np.random.choice(['Under $50k', '$50k-$99k', '$100k-$149k', '$150k+'], n),
         'Region': np.random.choice(['Northeast', 'Midwest', 'South', 'West'], n),
         '_Weight': np.random.uniform(0.7, 1.3, n)
     })
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def compute_simmons_crosstab(df, target_var, explore_var, weight_col):
-    crosstab = pd.crosstab(df[explore_var], df[target_var], values=df[weight_col], aggfunc='sum', margins=True, margins_name='Total')
+    """The core MRI Simmons math engine for calculating Universe, Reach, Comp, and Index."""
+    # Build the base cross-tabulation
+    crosstab = pd.crosstab(
+        df[explore_var], 
+        df[target_var], 
+        values=df[weight_col], 
+        aggfunc='sum', 
+        margins=True, 
+        margins_name='Total'
+    )
     
     results = {}
     for column in crosstab.columns:
@@ -80,22 +91,29 @@ def compute_simmons_crosstab(df, target_var, explore_var, weight_col):
             vert_pct = (count / crosstab.loc['Total', column]) * 100
             horz_pct = (count / crosstab['Total']) * 100
             pop_pct = (crosstab['Total'] / crosstab.loc['Total', 'Total']) * 100
-            index = (vert_pct / pop_pct) * 100
+            
+            # Avoid division by zero for index calculation
+            index = np.where(pop_pct > 0, (vert_pct / pop_pct) * 100, 0)
             
             results[column] = pd.DataFrame({
                 'Universe (000)': count.round(0),
                 'Vert % (Comp)': vert_pct.round(1),
                 'Horz % (Reach)': horz_pct.round(1),
-                'Index': index.round(0)
+                'Index': np.round(index, 0)
             })
     
+    # Concat the results into a single multi-index dataframe
     final_table = pd.concat(results.values(), axis=1, keys=results.keys())
-    return final_table.drop('Total', errors='ignore')
+    final_table = final_table.drop('Total', errors='ignore')
+    
+    # CRITICAL FIX: Flatten the multi-index columns to prevent Streamlit Arrow errors
+    final_table.columns = [f"{col[0]} | {col[1]}" for col in final_table.columns]
+    
+    return final_table
 
 # ---------------------------------------------------------
-# UI & INGESTION
+# UI & DATA INGESTION
 # ---------------------------------------------------------
-
 st.title("Roundpeg: Synthetic Mindset Engine 🎯")
 st.markdown("<p class='big-font'>Fusing quantitative predispositions with qualitative human truths.</p>", unsafe_allow_html=True)
 
@@ -104,12 +122,13 @@ doc_texts = {}
 uploaded_images = []
 
 with st.sidebar:
-    st.header("1. Ingest Data Streams")
-    
-    api_key = st.text_input("🔑 Gemini API Key (Required for Synthesis)", type="password")
+    st.header("1. System Configuration")
+    api_key = st.text_input("🔑 Gemini API Key", type="password", help="Required to synthesize qualitative truths.")
     if api_key:
         genai.configure(api_key=api_key)
         
+    st.header("2. Ingest Data Streams")
+    
     with st.expander("📊 Tabular Data (Quant)", expanded=True):
         st.caption("Upload Survey Data to power the Crosstab Engine.")
         quant_file = st.file_uploader("Upload Data", type=['csv', 'xlsx', 'tsv', 'parquet'])
@@ -123,6 +142,7 @@ with st.sidebar:
         st.caption("Upload photos from the field or social listening screenshots.")
         image_files = st.file_uploader("Upload Images", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
 
+# Handle Data Loading
 if use_mock:
     df = generate_mock_data()
     st.sidebar.success("Loaded 4,000 Mock Respondents.")
@@ -135,7 +155,8 @@ elif quant_file is not None:
 
 if raw_docs:
     for doc in raw_docs:
-        doc_texts[doc.name] = parse_document(doc)
+        # Pass the bytes and the filename safely to the universal parser
+        doc_texts[doc.name] = parse_document(doc.getvalue(), doc.name)
 
 if image_files:
     for img_file in image_files:
@@ -146,164 +167,194 @@ if image_files:
             st.sidebar.error(f"Error loading image {img_file.name}: {e}")
 
 # ---------------------------------------------------------
-# STRATEGY EXECUTION
+# STRATEGY EXECUTION & SYNTHESIS
 # ---------------------------------------------------------
-
 if df is not None:
     columns = df.columns.tolist()
 
-    st.sidebar.header("2. Strategy Configuration")
-    target_var = st.sidebar.selectbox("Select Target (e.g., Mindset)", columns, index=columns.index('Mindset_Segment') if 'Mindset_Segment' in columns else 0)
+    st.sidebar.header("3. Strategy Configuration")
+    target_var = st.sidebar.selectbox("Select Target Segment", columns, index=columns.index('Mindset_Segment') if 'Mindset_Segment' in columns else 0)
     explore_var = st.sidebar.selectbox("Select Variable to Explore", columns, index=columns.index('Generation') if 'Generation' in columns else min(1, len(columns)-1))
     weight_var = st.sidebar.selectbox("Select Survey Weight", ['None (Unweighted)'] + columns, index=columns.index('_Weight')+1 if '_Weight' in columns else 0)
+    
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔢 MRI Simmons Integration")
+    simmons_count_code = st.sidebar.text_area(
+        "Segment Count Code / Definition", 
+        placeholder="e.g., Must agree with 5 of 8:\n- I enjoy taking risks\n- I like to stand out...", 
+        help="Paste the Simmons count code logic here. The AI will use this as the anchor for the mindset's psychological profile."
+    )
 
-    if st.sidebar.button("Run Synthetic Analysis", type="primary"):
+    st.markdown("---")
+    
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🧠 Roundpeg Mindset Synthesis", 
+        "📊 Quant Crosstab Engine", 
+        "📓 Raw Ethnography",
+        "📸 Visual Evidence"
+    ])
+    
+    # --- TAB 1: THE ROUNDPEG LLM SYNTHESIS ENGINE ---
+    with tab1:
+        available_targets = [x for x in df[target_var].dropna().unique() if str(x).strip() != '']
+        selected_segment = st.selectbox("Select a Segment to Profile & Synthesize:", available_targets)
         
-        tab1, tab2, tab3, tab4 = st.tabs([
-            "🧠 Roundpeg Mindset Synthesis", 
-            "📊 Quant Crosstab Engine", 
-            "📓 Raw Ethnography",
-            "📸 Visual Evidence"
-        ])
+        # Calculate Segment High-level Stats
+        segment_df = df[df[target_var] == selected_segment]
+        total_n = len(segment_df)
+        total_pop = len(df)
         
-        # --- TAB 1: THE ROUNDPEG LLM SYNTHESIS ENGINE ---
-        with tab1:
-            st.subheader("Generate Roundpeg Mindset Profile")
-            
-            available_targets = df[target_var].dropna().unique()
-            selected_segment = st.selectbox("Select a Segment to Synthesize:", available_targets)
-            
-            if st.button("✨ Auto-Synthesize Mindset via Gemini"):
-                if not api_key:
-                    st.warning("⚠️ Please enter your Gemini API Key in the sidebar to run the Synthesis Engine.")
-                else:
-                    with st.spinner(f"Synthesizing Roundpeg Profile for '{selected_segment}'..."):
-                        
-                        # 1. Grab Quant Data Context (Top indexing traits for this specific segment)
-                        segment_df = df[df[target_var] == selected_segment]
-                        total_n = len(segment_df)
-                        
-                        # We calculate the top indexing elements from the explore_var to feed the AI
-                        weight_col = weight_var if weight_var != 'None (Unweighted)' else '__dummy_weight'
-                        if weight_col == '__dummy_weight':
-                            df['__dummy_weight'] = 1
-                        
-                        math_context = compute_simmons_crosstab(df, target_var, explore_var, weight_col)
-                        try:
-                            # Safely extract the 'Index' column for the selected segment
-                            if selected_segment in math_context.columns.get_level_values(0):
-                                segment_indices = math_context.xs('Index', axis=1, level=1)[selected_segment]
-                                top_indices = segment_indices.sort_values(ascending=False).head(5).to_dict()
-                                quant_context_string = f"Top Indexing '{explore_var}' Traits: {top_indices}"
-                            else:
-                                quant_context_string = "Quant data available, but index calculation failed for this specific slice."
-                        except Exception as e:
-                            quant_context_string = f"Could not compute top indices automatically. ({e})"
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown(f"<div class='metric-container'><p class='status-dot'></p><br><b>Raw Sample Size:</b><br><span style='font-size: 24px;'>{total_n}</span></div>", unsafe_allow_html=True)
+        with c2:
+            st.markdown(f"<div class='metric-container'><b>% of Total Audience:</b><br><span style='font-size: 24px;'>{round((total_n/total_pop)*100, 1)}%</span></div>", unsafe_allow_html=True)
+        with c3:
+            st.markdown(f"<div class='metric-container'><b>Data Streams:</b><br><span style='font-size: 16px;'>{len(doc_texts)} Qual Docs | {len(columns)} Quant Vars</span></div>", unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
 
-                        # 2. Grab Qual Data Context (Raw ethnography)
-                        raw_context = "\n".join(doc_texts.values())
-                        if not raw_context:
-                            raw_context = "No raw ethnographic text provided. Rely purely on quantitative inferences."
-                        
-                        # 3. THE ROUNDPEG SYSTEM PROMPT
-                        prompt = f"""
-                        You are a senior brand strategist at Roundpeg, a boutique insights consultancy. 
-                        Your job is to synthesize raw data into a 'Roundpeg Growth Target Mindset'.
-                        
-                        We are building a profile for a consumer segment named: '{selected_segment}'.
-                        Sample Size in data: {total_n}.
-                        
-                        Here is the Quantitative Data (Index scores where 100 is average):
-                        {quant_context_string}
-                        
-                        Here are the Qualitative Field Notes/Ethnographies:
-                        {raw_context[:10000]}
-                        
-                        INSTRUCTIONS:
-                        You must generate a strategic profile that strictly adheres to the 'Roundpeg 5 Fundamental Truths':
-                        1. Predisposition is forever (Focus on motivations, attitudes, beliefs).
-                        2. Created in the real world (Holistic human point-of-view).
-                        3. Gets you where you want to go (Identify the 20% who drive 80% of business).
-                        4. Master brand alignment (Category opportunities).
-                        5. Clarity & conviction (Uncover the defining human truth/tension).
-                        
-                        OUTPUT FORMAT (You must use exactly these headers):
-                        
-                        ### 🧠 {selected_segment.upper()} MINDSET
-                        *(Provide a 1-2 sentence tagline summarizing who they are as people)*
-                        
-                        #### 1. What they value in a brand
-                        *   **Conscious Interest:** (What do they actively look for?)
-                        *   **Top Motivations:** (What drives their purchase behavior?)
-                        
-                        #### 2. The Human Truth (Clarity & Conviction)
-                        *   **Tension/Barrier:** (What is holding them back in the real world?)
-                        *   **The Ultimate Truth:** (The strategic narrative the brand must adopt to win them over)
-                        
-                        #### 3. How they consume media & the world
-                        *(A short paragraph on their online anthropology—how they use social media, what they read, who they trust based on the provided data)*
-                        
-                        Do not use generic marketing jargon. Speak with empathy, clarity, and precision.
-                        """
-                        
-                        try:
-                            # Using Gemini 1.5 Pro
-                            model = genai.GenerativeModel('gemini-1.5-pro')
-                            response = model.generate_content(prompt)
-                            
-                            st.success("Roundpeg Synthesis Complete!")
-                            st.markdown(f"<div style='padding: 20px; background-color: #fcfcfc; border-left: 6px solid #FF6B6B; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);'>{response.text}</div>", unsafe_allow_html=True)
-                        except Exception as e:
-                            st.error(f"AI Generation Error: {e}")
-
-        # --- TAB 2: QUANT CROSSTAB ENGINE ---
-        with tab2:
-            st.subheader(f"Profiling '{target_var}' against '{explore_var}'")
-            
-            weight_col = weight_var if weight_var != 'None (Unweighted)' else '__dummy_weight'
-            if weight_col == '__dummy_weight':
-                df['__dummy_weight'] = 1
-                
-            final_table = compute_simmons_crosstab(df, target_var, explore_var, weight_col)
-            
-            # Flatten MultiIndex for Streamlit display
-            final_table.columns = [f"{col[0]} | {col[1]}" for col in final_table.columns]
-            
-            def color_index(val):
-                try:
-                    v = float(val)
-                    if pd.isna(v): return ''
-                    color = '#27ae60' if v > 115 else '#c0392b' if v < 85 else 'inherit'
-                    weight = 'bold' if v > 115 or v < 85 else 'normal'
-                    return f'color: {color}; font-weight: {weight}'
-                except (ValueError, TypeError):
-                    return ''
-            
-            index_cols = [col for col in final_table.columns if 'Index' in col]
-            styled_table = final_table.style.map(color_index, subset=index_cols)
-            
-            st.dataframe(styled_table, use_container_width=True, height=500)
-
-        # --- TAB 3: RAW ETHNOGRAPHY ---
-        with tab3:
-            st.subheader("Raw Ethnographic Transcripts & Journals")
-            if doc_texts:
-                for doc_name, text in doc_texts.items():
-                    with st.expander(f"📄 {doc_name}", expanded=False):
-                        st.text_area("Content", value=text, height=300, disabled=True, key=f"text_{doc_name}")
+        if st.button("✨ Auto-Synthesize Mindset via Gemini", type="primary"):
+            if not api_key:
+                st.error("⚠️ Please enter your Gemini API Key in the sidebar to run the Strategy Engine.")
             else:
-                st.info("No documents uploaded. Use the sidebar to upload TXT, DOCX, PDF, or MD files.")
+                with st.spinner(f"Synthesizing Roundpeg Profile for '{selected_segment}'..."):
+                    
+                    # 1. Grab Quant Data Context (Find what indexes exceptionally high for this segment)
+                    weight_col = weight_var if weight_var != 'None (Unweighted)' else '__dummy_weight'
+                    if weight_col == '__dummy_weight':
+                        df['__dummy_weight'] = 1
+                    
+                    math_context = compute_simmons_crosstab(df, target_var, explore_var, weight_col)
+                    
+                    quant_context_string = ""
+                    try:
+                        # Find columns in the flattened table that belong to the selected segment and represent the Index
+                        target_col = f"{selected_segment} | Index"
+                        if target_col in math_context.columns:
+                            segment_indices = math_context[target_col].dropna()
+                            top_indices = segment_indices.sort_values(ascending=False).head(5).to_dict()
+                            bottom_indices = segment_indices.sort_values(ascending=True).head(3).to_dict()
+                            quant_context_string = f"Top Over-Indexing Traits in '{explore_var}': {top_indices}\nTop Under-Indexing Traits (Barriers): {bottom_indices}"
+                        else:
+                            quant_context_string = "Could not isolate index data for this specific segment."
+                    except Exception as e:
+                        quant_context_string = f"Failed to compute indices: {e}"
 
-        # --- TAB 4: VISUAL EVIDENCE ---
-        with tab4:
-            st.subheader("Visual Anthropology & Field Photos")
-            if uploaded_images:
-                cols = st.columns(3)
-                for i, (img_name, img) in enumerate(uploaded_images):
-                    with cols[i % 3]:
-                        st.image(img, caption=img_name, use_column_width=True)
-            else:
-                st.info("No images uploaded. Use the sidebar to upload PNG or JPG files.")
+                    # 2. Grab Qual Data Context (Raw ethnography texts)
+                    raw_context = "\n\n--- DOCUMENT BREAK ---\n\n".join(doc_texts.values())
+                    if not raw_context.strip():
+                        raw_context = "No raw qualitative/ethnographic text provided. You must rely purely on the quantitative inferences provided."
+                    
+                    # 3. THE ROUNDPEG SYSTEM PROMPT
+                    prompt = f"""
+                    You are a Senior Brand Strategist at Roundpeg, a highly respected boutique insights consultancy.
+                    Your task is to synthesize raw quantitative and qualitative data into a strategic 'Roundpeg Growth Target Mindset'.
+                    
+                    We are building a profile for the consumer segment named: '{selected_segment}'.
+                    
+                    === DATA INPUTS ===
+                    MRI SIMMONS COUNT CODE (Segment Definition):
+                    {simmons_count_code if simmons_count_code else "No explicit count code provided. Rely on index scores."}
+
+                    QUANTITATIVE CONTEXT (Index scores where 100 is average, >120 is high propensity):
+                    {quant_context_string}
+                    
+                    QUALITATIVE ETHNOGRAPHY / FIELD NOTES:
+                    {raw_context[:15000]} # Capped to prevent token limits
+                    
+                    === ROUNDPEG METHODOLOGY ===
+                    Adhere strictly to the Roundpeg 5 Fundamental Truths:
+                    1. Purchase intent is fleeting, predisposition is forever (Focus on deep motivations, attitudes, beliefs).
+                    2. Created in the real world (Reframe from a holistic human point-of-view).
+                    3. Gets you where you want to go (Identify the vital drivers).
+                    4. Master brand alignment (Complementary category opportunities).
+                    5. Game-changing growth requires clarity & conviction (Uncover the defining human tension and barrier).
+                    
+                    === REQUIRED OUTPUT FORMAT ===
+                    You MUST format your response EXACTLY using the following Markdown structure. Do not deviate.
+                    
+                    ### 🧠 THE {selected_segment.upper()} MINDSET
+                    *(Write a punchy, insightful 1-2 sentence tagline summarizing who they are as people)*
+
+                    <div class="mindset-card">
+                    <p class="truth-header">The Human Truth (Clarity & Conviction)</p>
+                    <ul>
+                        <li><b>The Core Tension:</b> (What is holding them back in the real world? What is their struggle?)</li>
+                        <li><b>The Ultimate Truth:</b> (The strategic narrative or emotional hook a brand must adopt to win them over.)</li>
+                    </ul>
+                    </div>
+
+                    #### 1. What they value in a Product/Brand
+                    *   **Conscious Interest:** (What do they actively look for? e.g., innovative design, safety, status)
+                    *   **Top Motivations:** (What drives their underlying behavior? e.g., feeling alive, protecting family)
+                    *   **Willingness to Spend:** (How do they view money/purchasing in this context?)
+
+                    #### 2. How they consume media & the world
+                    *(Write a tight, strategic paragraph on their online anthropology—how they use social media, what they read, who they trust. Base this on the provided data, or infer deeply based on their generational/index profile).*
+                    
+                    Speak with empathy, clarity, and precision. Avoid generic marketing fluff.
+                    """
+                    
+                    try:
+                        # Execute Gemini API Call
+                        model = genai.GenerativeModel('gemini-1.5-pro')
+                        response = model.generate_content(prompt)
+                        
+                        st.success("Roundpeg Synthesis Complete!")
+                        st.markdown(response.text, unsafe_allow_html=True)
+                        
+                    except Exception as e:
+                        st.error(f"AI Generation Error. Please check your API Key and network. Details: {e}")
+
+    # --- TAB 2: QUANT CROSSTAB ENGINE ---
+    with tab2:
+        st.subheader("Simmons-Style Crosstab")
+        st.caption("Metrics calculated: Universe (000), Vertical % (Composition), Horizontal % (Reach), and Index (Propensity).")
+        
+        weight_col = weight_var if weight_var != 'None (Unweighted)' else '__dummy_weight'
+        if weight_col == '__dummy_weight':
+            df['__dummy_weight'] = 1
+            
+        final_table = compute_simmons_crosstab(df, target_var, explore_var, weight_col)
+        
+        # Color formatting specifically for Index columns
+        def color_index(val):
+            try:
+                v = float(val)
+                if pd.isna(v): return ''
+                color = '#27ae60' if v > 115 else '#c0392b' if v < 85 else 'inherit'
+                weight = 'bold' if v > 115 or v < 85 else 'normal'
+                return f'color: {color}; font-weight: {weight}'
+            except (ValueError, TypeError):
+                return ''
+        
+        # Apply styling only to columns containing the word 'Index'
+        index_cols = [col for col in final_table.columns if 'Index' in col]
+        styled_table = final_table.style.map(color_index, subset=index_cols)
+        
+        st.dataframe(styled_table, use_container_width=True, height=600)
+
+    # --- TAB 3: RAW ETHNOGRAPHY ---
+    with tab3:
+        st.subheader("Raw Ethnographic Transcripts & Journals")
+        if doc_texts:
+            for doc_name, text in doc_texts.items():
+                with st.expander(f"📄 {doc_name}", expanded=False):
+                    st.text_area(f"Contents of {doc_name}", value=text, height=300, disabled=True)
+        else:
+            st.info("No qualitative documents uploaded. Use the sidebar to upload TXT, DOCX, PDF, or MD files.")
+
+    # --- TAB 4: VISUAL EVIDENCE ---
+    with tab4:
+        st.subheader("Visual Anthropology & Field Photos")
+        if uploaded_images:
+            cols = st.columns(3)
+            for i, (img_name, img) in enumerate(uploaded_images):
+                with cols[i % 3]:
+                    st.image(img, caption=img_name, use_container_width=True)
+        else:
+            st.info("No images uploaded. Use the sidebar to upload PNG or JPG files.")
 
 else:
-    st.info("Awaiting Data Upload in the Sidebar. (Or click 'Use Mock Audience Data')")
+    st.info("Awaiting Data Upload in the Sidebar. (Click 'Use Mock Audience Data' to demo the system).")
