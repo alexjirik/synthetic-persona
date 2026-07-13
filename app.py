@@ -51,16 +51,16 @@ html_code = """
                 <i class="fa-solid fa-layer-group text-2xl mr-3 rp-orange"></i>
                 <span class="text-lg font-bold tracking-wider">ROUNDPEG</span>
             </div>
-            <nav class="p-4 space-y-2">
-                <a href="#" class="flex items-center space-x-3 bg-slate-800 text-white px-4 py-3 rounded-lg font-medium transition-colors">
+            <nav class="p-4 space-y-2" id="sidebar-nav">
+                <a href="#" onclick="switchTab('synthesis')" id="nav-synthesis" class="nav-item flex items-center space-x-3 bg-slate-800 text-white px-4 py-3 rounded-lg font-medium transition-colors">
                     <i class="fa-solid fa-brain w-5"></i>
                     <span>Synthesis Engine</span>
                 </a>
-                <a href="#" class="flex items-center space-x-3 text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-lg font-medium transition-colors">
+                <a href="#" onclick="switchTab('crosstabs')" id="nav-crosstabs" class="nav-item flex items-center space-x-3 text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-lg font-medium transition-colors">
                     <i class="fa-solid fa-chart-pie w-5"></i>
                     <span>Simmons Crosstabs</span>
                 </a>
-                <a href="#" class="flex items-center space-x-3 text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-lg font-medium transition-colors">
+                <a href="#" onclick="switchTab('qual')" id="nav-qual" class="nav-item flex items-center space-x-3 text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-lg font-medium transition-colors">
                     <i class="fa-solid fa-book-open w-5"></i>
                     <span>Qual Repository</span>
                 </a>
@@ -95,8 +95,8 @@ html_code = """
             </div>
         </header>
 
-        <!-- Content Area -->
-        <div class="flex-1 overflow-y-auto p-8">
+        <!-- Content Area: Synthesis Engine -->
+        <div id="view-synthesis" class="flex-1 overflow-y-auto p-8">
             
             <!-- Segment Selector -->
             <div class="mb-8">
@@ -213,6 +213,21 @@ html_code = """
                 </div>
             </div>
         </div>
+
+        <!-- Content Area: Simmons Crosstabs (Placeholder) -->
+        <div id="view-crosstabs" class="flex-1 overflow-y-auto p-8 hidden flex flex-col items-center justify-center">
+             <i class="fa-solid fa-chart-pie text-6xl text-slate-300 mb-6"></i>
+             <h2 class="text-3xl font-bold text-slate-700 mb-2">Simmons Crosstabs</h2>
+             <p class="text-slate-500">The quantitative data engine is currently being built.</p>
+        </div>
+
+        <!-- Content Area: Qual Repository (Placeholder) -->
+        <div id="view-qual" class="flex-1 overflow-y-auto p-8 hidden flex flex-col items-center justify-center">
+             <i class="fa-solid fa-book-open text-6xl text-slate-300 mb-6"></i>
+             <h2 class="text-3xl font-bold text-slate-700 mb-2">Qualitative Repository</h2>
+             <p class="text-slate-500">Upload and manage interview transcripts and ethnographies here.</p>
+        </div>
+
     </main>
 
     <script>
@@ -359,6 +374,25 @@ html_code = """
 
         // Load default
         loadMindset('Moment Makers');
+
+        // Sidebar Navigation Logic
+        function switchTab(tabId) {
+            // Hide all views
+            document.getElementById('view-synthesis').classList.add('hidden');
+            document.getElementById('view-crosstabs').classList.add('hidden');
+            document.getElementById('view-qual').classList.add('hidden');
+
+            // Reset all nav items
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.className = 'nav-item flex items-center space-x-3 text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-lg font-medium transition-colors';
+            });
+
+            // Show selected view
+            document.getElementById('view-' + tabId).classList.remove('hidden');
+
+            // Highlight selected nav item
+            document.getElementById('nav-' + tabId).className = 'nav-item flex items-center space-x-3 bg-slate-800 text-white px-4 py-3 rounded-lg font-medium transition-colors';
+        }
 
     </script>
 </body>
