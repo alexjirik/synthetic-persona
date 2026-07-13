@@ -2,6 +2,7 @@ streamlit
 pandas
 numpy
 openpyxl
+Pillow
 python-docx
 PyPDF2
-Pillow
+google-generativeai
