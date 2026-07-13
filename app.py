@@ -254,7 +254,7 @@ if df is not None:
                     === REQUIRED OUTPUT FORMAT ===
                     You MUST format your response EXACTLY using the following Markdown structure. Do not deviate.
                     
-                    ### 🧠 THE {selected_segment.upper()} MINDSET
+                    ### 🧠 THE {str(selected_segment).upper()} MINDSET
                     *(Write a punchy, insightful 1-2 sentence tagline summarizing who they are as people)*
 
                     <div class="mindset-card">
@@ -326,5 +326,7 @@ if df is not None:
         else:
             st.info("No images uploaded. Use the sidebar to upload PNG or JPG files.")
 
+else:
+    st.info("Awaiting Data Upload in the Sidebar. (Click 'Use Mock Audience Data' to demo the system).")
 else:
     st.info("Awaiting Data Upload in the Sidebar. (Click 'Use Mock Audience Data' to demo the system).")
