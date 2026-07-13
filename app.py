@@ -300,7 +300,11 @@ if df is not None:
             except (ValueError, TypeError):
                 return ''
         
-        index_cols = [col for col in final_table.columns if 'Index' in col]
+        # CORRECTED STYLING LOGIC:
+        # Find all columns that end with 'Index'
+        index_cols = [col for col in final_table.columns if col.endswith('Index')]
+        
+        # Apply the styling only to those specific columns
         styled_table = final_table.style.map(color_index, subset=index_cols)
         
         st.dataframe(styled_table, use_container_width=True, height=600)
