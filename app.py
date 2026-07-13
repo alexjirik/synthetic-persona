@@ -3,13 +3,12 @@ import pandas as pd
 import numpy as np
 import json
 import io
-
-# NEW LIBRARIES FOR UNIVERSAL INGESTION
 from PIL import Image
 import docx
 import PyPDF2
+import google.generativeai as genai
 
-st.set_page_config(page_title="Synthetic Mindset Engine", layout="wide")
+st.set_page_config(page_title="Roundpeg: Synthetic Mindset Engine", layout="wide")
 
 st.markdown("""
     <style>
@@ -23,35 +22,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Base qualitative database. This will be updated if a user uploads a custom JSON.
-DEFAULT_MINDSET_DATABASE = {
-    "The Harmonizer": {
-        "tagline": "Approach betterment fluidly - enriching their mind, body and connection with others.",
-        "anthropology": "Online behavior shows a shift away from 'hustle culture' toward holistic wellness. They follow micro-influencers focused on mental health, outdoor recreation, and balanced living.",
-        "attitudes": ["I'm an optimist (Index: 153)", "Like to pursue a life of challenge & change (Index: 171)", "I exercise at least once per week (Index: 156)"],
-        "brands": ["REI", "J.Crew", "Banana Republic", "Costco"],
-        "truth": "TENSION: They want to grow and evolve, but feel overwhelmed by fragmented wellness trends. TRUTH: They seek brands that act as unifying partners in their holistic journey, not just purveyors of singular products."
-    },
-    "The Satisfier": {
-        "tagline": "Lifestyle is carefree, exciting & focused on the road less traveled.",
-        "anthropology": "Social listening reveals high engagement with travel, extreme sports, and spontaneous event content. They value experiences over physical accumulation.",
-        "attitudes": ["Enjoy taking risks (Index: 144)", "Travel the unbeaten path (Index: 136)", "Spur of the moment (Index: 182)"],
-        "brands": ["Puma", "Crocs", "Nike"],
-        "truth": "TENSION: They crave spontaneous joy in a highly regimented, scheduled world. TRUTH: They gravitate toward brands that remove friction and act as enablers of immediate, carefree experiences."
-    },
-    "The Calculator": {
-        "tagline": "Disciplined & feel a greater sense of duty to those around them.",
-        "anthropology": "Digital footprints index highly on financial planning, consumer reports, and family-oriented logistics. They research heavily before committing.",
-        "attitudes": ["Duty is more important than personal enjoyment (Index: 162)", "I don't like responsibility (Index: 75 - Low)", "Swayed by other people's views (Index: 186)"],
-        "brands": ["Express", "Ann Taylor", "Nordstrom Rack"],
-        "truth": "TENSION: They carry the mental load for their families and fear making the 'wrong' choice. TRUTH: They need brands to provide absolute transparency, validating their choices so they can finally relax."
-    }
-}
-
 # ---------------------------------------------------------
-# PERFORMANCE OPTIMIZATION: @st.cache_data decorators
-# These ensure that heavy file reads and math calculations 
-# are stored in memory and only run once.
+# CACHED DATA LOADERS (Speed Optimization)
 # ---------------------------------------------------------
 
 @st.cache_data
@@ -65,11 +37,6 @@ def load_quant_data(file):
 def load_qual_json(file):
     return json.load(file)
 
-@st.cache_data
-def load_raw_text(file):
-    return file.getvalue().decode("utf-8")
-
-# --- NEW UNIVERSAL DOCUMENT PARSER ---
 @st.cache_data
 def parse_document(file):
     """Extracts text from TXT, DOCX, and PDF files."""
@@ -92,10 +59,10 @@ def parse_document(file):
 @st.cache_data
 def generate_mock_data():
     np.random.seed(42)
-    n = 2000
+    n = 4000
     return pd.DataFrame({
         'Respondent_ID': range(1, n + 1),
-        'Mindset_Segment': np.random.choice(['The Harmonizer', 'The Satisfier', 'The Calculator', 'Unclassified'], n, p=[0.25, 0.30, 0.20, 0.25]),
+        'Mindset_Segment': np.random.choice(['Moment Makers', 'Expressive Escapists', 'Green Mindset', 'Yellow Mindset', 'Blue Mindset'], n, p=[0.25, 0.15, 0.20, 0.10, 0.30]),
         'Generation': np.random.choice(['Gen Z', 'Millennial', 'Gen X', 'Boomer+'], n, p=[0.15, 0.40, 0.25, 0.20]),
         'Income_Bracket': np.random.choice(['Under $50k', '$50k-$99k', '$100k-$149k', '$150k+'], n),
         'Region': np.random.choice(['Northeast', 'Midwest', 'South', 'West'], n),
@@ -125,24 +92,28 @@ def compute_simmons_crosstab(df, target_var, explore_var, weight_col):
     final_table = pd.concat(results.values(), axis=1, keys=results.keys())
     return final_table.drop('Total', errors='ignore')
 
-st.title("Synthetic Mindset Engine 🎯")
+# ---------------------------------------------------------
+# UI & INGESTION
+# ---------------------------------------------------------
+
+st.title("Roundpeg: Synthetic Mindset Engine 🎯")
 st.markdown("<p class='big-font'>Fusing quantitative predispositions with qualitative human truths.</p>", unsafe_allow_html=True)
 
-# Application State
 df = None
-active_mindset_db = DEFAULT_MINDSET_DATABASE.copy()
+doc_texts = {}
+uploaded_images = []
 
 with st.sidebar:
     st.header("1. Ingest Data Streams")
     
+    api_key = st.text_input("🔑 Gemini API Key (Required for Synthesis)", type="password")
+    if api_key:
+        genai.configure(api_key=api_key)
+        
     with st.expander("📊 Tabular Data (Quant)", expanded=True):
         st.caption("Upload Survey Data to power the Crosstab Engine.")
         quant_file = st.file_uploader("Upload Data", type=['csv', 'xlsx', 'tsv', 'parquet'])
         use_mock = st.button("Use Mock Audience Data")
-        
-    with st.expander("🧠 Structured Data (Qual Profiles)"):
-        st.caption("Upload JSON to update Mindset definitions.")
-        qual_json_file = st.file_uploader("Upload JSON", type=['json'])
         
     with st.expander("📓 Unstructured Text (Ethnography)"):
         st.caption("Upload raw transcripts, journals, or field notes.")
@@ -152,10 +123,9 @@ with st.sidebar:
         st.caption("Upload photos from the field or social listening screenshots.")
         image_files = st.file_uploader("Upload Images", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
 
-# Process Data
 if use_mock:
     df = generate_mock_data()
-    st.sidebar.success("Loaded 2,000 Mock Respondents.")
+    st.sidebar.success("Loaded 4,000 Mock Respondents.")
 elif quant_file is not None:
     try:
         df = load_quant_data(quant_file)
@@ -163,22 +133,10 @@ elif quant_file is not None:
     except Exception as e:
         st.sidebar.error(f"Quant Error: {e}")
 
-if qual_json_file is not None:
-    try:
-        uploaded_profiles = load_qual_json(qual_json_file)
-        active_mindset_db.update(uploaded_profiles)
-        st.sidebar.success("Updated Qualitative Profiles.")
-    except Exception as e:
-        st.sidebar.error(f"JSON Error: {e}")
-
-# Process New Document Types
-doc_texts = {}
 if raw_docs:
     for doc in raw_docs:
         doc_texts[doc.name] = parse_document(doc)
 
-# Process Images
-uploaded_images = []
 if image_files:
     for img_file in image_files:
         try:
@@ -186,6 +144,10 @@ if image_files:
             uploaded_images.append((img_file.name, img))
         except Exception as e:
             st.sidebar.error(f"Error loading image {img_file.name}: {e}")
+
+# ---------------------------------------------------------
+# STRATEGY EXECUTION
+# ---------------------------------------------------------
 
 if df is not None:
     columns = df.columns.tolist()
@@ -197,25 +159,114 @@ if df is not None:
 
     if st.sidebar.button("Run Synthetic Analysis", type="primary"):
         
-        # We now have 4 tabs to accommodate the multi-format data
         tab1, tab2, tab3, tab4 = st.tabs([
-            "📊 Quant Crosstab (Simmons)", 
-            "🧠 The Synthetic Mindset (Qual)", 
+            "🧠 Roundpeg Mindset Synthesis", 
+            "📊 Quant Crosstab Engine", 
             "📓 Raw Ethnography",
             "📸 Visual Evidence"
         ])
         
+        # --- TAB 1: THE ROUNDPEG LLM SYNTHESIS ENGINE ---
         with tab1:
+            st.subheader("Generate Roundpeg Mindset Profile")
+            
+            available_targets = df[target_var].dropna().unique()
+            selected_segment = st.selectbox("Select a Segment to Synthesize:", available_targets)
+            
+            if st.button("✨ Auto-Synthesize Mindset via Gemini"):
+                if not api_key:
+                    st.warning("⚠️ Please enter your Gemini API Key in the sidebar to run the Synthesis Engine.")
+                else:
+                    with st.spinner(f"Synthesizing Roundpeg Profile for '{selected_segment}'..."):
+                        
+                        # 1. Grab Quant Data Context (Top indexing traits for this specific segment)
+                        segment_df = df[df[target_var] == selected_segment]
+                        total_n = len(segment_df)
+                        
+                        # We calculate the top indexing elements from the explore_var to feed the AI
+                        weight_col = weight_var if weight_var != 'None (Unweighted)' else '__dummy_weight'
+                        if weight_col == '__dummy_weight':
+                            df['__dummy_weight'] = 1
+                        
+                        math_context = compute_simmons_crosstab(df, target_var, explore_var, weight_col)
+                        try:
+                            # Safely extract the 'Index' column for the selected segment
+                            if selected_segment in math_context.columns.get_level_values(0):
+                                segment_indices = math_context.xs('Index', axis=1, level=1)[selected_segment]
+                                top_indices = segment_indices.sort_values(ascending=False).head(5).to_dict()
+                                quant_context_string = f"Top Indexing '{explore_var}' Traits: {top_indices}"
+                            else:
+                                quant_context_string = "Quant data available, but index calculation failed for this specific slice."
+                        except Exception as e:
+                            quant_context_string = f"Could not compute top indices automatically. ({e})"
+
+                        # 2. Grab Qual Data Context (Raw ethnography)
+                        raw_context = "\n".join(doc_texts.values())
+                        if not raw_context:
+                            raw_context = "No raw ethnographic text provided. Rely purely on quantitative inferences."
+                        
+                        # 3. THE ROUNDPEG SYSTEM PROMPT
+                        prompt = f"""
+                        You are a senior brand strategist at Roundpeg, a boutique insights consultancy. 
+                        Your job is to synthesize raw data into a 'Roundpeg Growth Target Mindset'.
+                        
+                        We are building a profile for a consumer segment named: '{selected_segment}'.
+                        Sample Size in data: {total_n}.
+                        
+                        Here is the Quantitative Data (Index scores where 100 is average):
+                        {quant_context_string}
+                        
+                        Here are the Qualitative Field Notes/Ethnographies:
+                        {raw_context[:10000]}
+                        
+                        INSTRUCTIONS:
+                        You must generate a strategic profile that strictly adheres to the 'Roundpeg 5 Fundamental Truths':
+                        1. Predisposition is forever (Focus on motivations, attitudes, beliefs).
+                        2. Created in the real world (Holistic human point-of-view).
+                        3. Gets you where you want to go (Identify the 20% who drive 80% of business).
+                        4. Master brand alignment (Category opportunities).
+                        5. Clarity & conviction (Uncover the defining human truth/tension).
+                        
+                        OUTPUT FORMAT (You must use exactly these headers):
+                        
+                        ### 🧠 {selected_segment.upper()} MINDSET
+                        *(Provide a 1-2 sentence tagline summarizing who they are as people)*
+                        
+                        #### 1. What they value in a brand
+                        *   **Conscious Interest:** (What do they actively look for?)
+                        *   **Top Motivations:** (What drives their purchase behavior?)
+                        
+                        #### 2. The Human Truth (Clarity & Conviction)
+                        *   **Tension/Barrier:** (What is holding them back in the real world?)
+                        *   **The Ultimate Truth:** (The strategic narrative the brand must adopt to win them over)
+                        
+                        #### 3. How they consume media & the world
+                        *(A short paragraph on their online anthropology—how they use social media, what they read, who they trust based on the provided data)*
+                        
+                        Do not use generic marketing jargon. Speak with empathy, clarity, and precision.
+                        """
+                        
+                        try:
+                            # Using Gemini 1.5 Pro
+                            model = genai.GenerativeModel('gemini-1.5-pro')
+                            response = model.generate_content(prompt)
+                            
+                            st.success("Roundpeg Synthesis Complete!")
+                            st.markdown(f"<div style='padding: 20px; background-color: #fcfcfc; border-left: 6px solid #FF6B6B; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);'>{response.text}</div>", unsafe_allow_html=True)
+                        except Exception as e:
+                            st.error(f"AI Generation Error: {e}")
+
+        # --- TAB 2: QUANT CROSSTAB ENGINE ---
+        with tab2:
             st.subheader(f"Profiling '{target_var}' against '{explore_var}'")
             
             weight_col = weight_var if weight_var != 'None (Unweighted)' else '__dummy_weight'
             if weight_col == '__dummy_weight':
                 df['__dummy_weight'] = 1
                 
-            # Utilize the cached math function
             final_table = compute_simmons_crosstab(df, target_var, explore_var, weight_col)
             
-            # Flatten MultiIndex columns to avoid Streamlit Styler exceptions
+            # Flatten MultiIndex for Streamlit display
             final_table.columns = [f"{col[0]} | {col[1]}" for col in final_table.columns]
             
             def color_index(val):
@@ -228,70 +279,12 @@ if df is not None:
                 except (ValueError, TypeError):
                     return ''
             
-            # Target only the newly flattened 'Index' columns
             index_cols = [col for col in final_table.columns if 'Index' in col]
             styled_table = final_table.style.map(color_index, subset=index_cols)
             
-            st.dataframe(styled_table, use_container_width=True, height=400)
-            st.caption("*Index > 115 indicates strong predisposition. Index < 85 indicates barrier.*")
+            st.dataframe(styled_table, use_container_width=True, height=500)
 
-        with tab2:
-            st.subheader("The Growth Target Truths")
-            
-            available_targets = df[target_var].dropna().unique()
-            selected_segment = st.selectbox("Select a Segment to Profile:", available_targets)
-            
-            # Look up the qualitative data from the active database
-            qual_data = active_mindset_db.get(selected_segment)
-            
-            if qual_data:
-                st.markdown(f"### {selected_segment}")
-                st.markdown(f"*{qual_data.get('tagline', '')}*")
-                
-                segment_df = df[df[target_var] == selected_segment]
-                total_n = len(segment_df)
-                total_pop = len(df)
-                
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    st.markdown(f"<div class='metric-container'><p class='status-dot' style='display:inline-block; margin-right:5px;'></p><b>Sample Size:</b> {total_n}</div>", unsafe_allow_html=True)
-                with c2:
-                    st.markdown(f"<div class='metric-container'><b>% of Population:</b> {round((total_n/total_pop)*100, 1)}%</div>", unsafe_allow_html=True)
-                with c3:
-                    st.markdown(f"<div class='metric-container'><b>Status:</b> Active Segment</div>", unsafe_allow_html=True)
-                
-                st.markdown("<br>", unsafe_allow_html=True)
-
-                col_left, col_right = st.columns([1.5, 1])
-                
-                with col_left:
-                    st.markdown(f"""
-                    <div style='padding: 20px; background-color: #f9f9f9; border-radius: 8px;'>
-                        <p class='editorial-hero-sub'>1. Predisposition (Attitudes)</p>
-                        <ul style='font-size: 14px; color: #333;'>
-                            {"".join([f"<li>{item}</li>" for item in qual_data.get('attitudes', [])])}
-                        </ul>
-                        <br>
-                        <p class='editorial-hero-sub'>2. Real World (Online Anthropology)</p>
-                        <p style='font-size: 14px; color: #333;'>{qual_data.get('anthropology', 'No anthropology data available.')}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col_right:
-                    st.markdown(f"""
-                    <div style='padding: 20px; background-color: #f9f9f9; border-radius: 8px;'>
-                        <p class='editorial-hero-sub'>3. Brand Alignment (Affinity)</p>
-                        <p style='font-size: 14px; color: #333;'><i>Brands they index highly with:</i><br> <b>{', '.join(qual_data.get('brands', []))}</b></p>
-                        <br>
-                        <p class='editorial-hero-sub' style='color: #ff5500;'>4. THE HUMAN TRUTH</p>
-                        <p style='font-size: 15px; font-weight: 500; color: #111; border-left: 3px solid #ff5500; padding-left: 10px;'>
-                            {qual_data.get('truth', 'No truth defined.')}
-                        </p>
-                    </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.warning(f"No qualitative profile exists yet for '{selected_segment}'. Upload a JSON file in the sidebar to define this segment's qualitative traits.")
-
+        # --- TAB 3: RAW ETHNOGRAPHY ---
         with tab3:
             st.subheader("Raw Ethnographic Transcripts & Journals")
             if doc_texts:
@@ -301,10 +294,11 @@ if df is not None:
             else:
                 st.info("No documents uploaded. Use the sidebar to upload TXT, DOCX, PDF, or MD files.")
 
+        # --- TAB 4: VISUAL EVIDENCE ---
         with tab4:
             st.subheader("Visual Anthropology & Field Photos")
             if uploaded_images:
-                cols = st.columns(3) # Display in a 3-column grid
+                cols = st.columns(3)
                 for i, (img_name, img) in enumerate(uploaded_images):
                     with cols[i % 3]:
                         st.image(img, caption=img_name, use_column_width=True)
