@@ -68,7 +68,6 @@ def generate_mock_data():
 @st.cache_data(show_spinner=False)
 def compute_simmons_crosstab(df, target_var, explore_var, weight_col):
     """The core MRI Simmons math engine for calculating Universe, Reach, Comp, and Index."""
-    # Build the base cross-tabulation
     crosstab = pd.crosstab(
         df[explore_var], 
         df[target_var], 
@@ -96,7 +95,6 @@ def compute_simmons_crosstab(df, target_var, explore_var, weight_col):
                 'Index': np.round(index, 0)
             })
     
-    # Concat the results into a single multi-index dataframe
     final_table = pd.concat(results.values(), axis=1, keys=results.keys())
     final_table = final_table.drop('Total', errors='ignore')
     
@@ -326,7 +324,5 @@ if df is not None:
         else:
             st.info("No images uploaded. Use the sidebar to upload PNG or JPG files.")
 
-else:
-    st.info("Awaiting Data Upload in the Sidebar. (Click 'Use Mock Audience Data' to demo the system).")
 else:
     st.info("Awaiting Data Upload in the Sidebar. (Click 'Use Mock Audience Data' to demo the system).")
