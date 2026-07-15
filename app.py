@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import google.generativeai as genai
 
 st.set_page_config(page_title="Roundpeg | Growth Target Engine", layout="wide")
 
@@ -40,9 +39,6 @@ def render_strategic_framework():
 render_strategic_framework()
 
 # --- 1. DATA INGESTION LAYER ---
-st.sidebar.markdown("### 🔑 API Configuration")
-api_key = st.sidebar.text_input("Gemini API Key (For Q&A)", type="password")
-
 st.sidebar.markdown("### 📥 1. Ingest Data")
 # UPGRADE: Now accepts both CSV and Excel (.xlsx) files
 uploaded_file = st.sidebar.file_uploader("Upload Survey Data (CSV or Excel)", type=['csv', 'xlsx'])
@@ -159,51 +155,40 @@ if st.sidebar.button("Run Simmons Math Engine"):
         
         st.info("💡 **How to read this:** Notice how the **Eating is Pure** mindset drastically over-indexes on organic preferences and label checking, validating the psychographic profile.")
         
-        st.session_state['crosstab_results'] = pivot_df
+        # Save the flat results DataFrame for the Query Engine
+        st.session_state['crosstab_results_flat'] = results_df
 
-# --- 4. DATA Q&A ASSISTANT ---
+# --- 4. QUICK DATA QUERIES (NO AI) ---
 st.markdown("---")
-st.markdown("### 💬 Ask the Data")
-st.markdown("Chat with our AI Strategy Assistant to uncover insights from your uploaded data and crosstabs.")
+st.markdown("### 🔍 Quick Data Queries")
+st.markdown("Ask exact, mathematically accurate questions about your run. **100% secure, offline, and math-based.**")
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+if 'crosstab_results_flat' in st.session_state:
+    query_df = st.session_state['crosstab_results_flat']
+    
+    # Pre-built questions that researchers ask most often
+    query_type = st.selectbox("Select a quick question to ask the data:", [
+        "What are the highest indexing traits for a specific segment?",
+        "Which segment indexes highest for a specific trait?",
+        "What is the total sample size for a specific segment?"
+    ])
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    if query_type == "What are the highest indexing traits for a specific segment?":
+        selected_segment = st.selectbox("Select Segment:", query_df['Segment'].unique())
+        top_traits = query_df[query_df['Segment'] == selected_segment].sort_values(by="Index", ascending=False)
+        st.dataframe(top_traits[['Behavior/Trait', 'Index', 'Vertical %', 'Horizontal %']].head(10), use_container_width=True)
+        
+    elif query_type == "Which segment indexes highest for a specific trait?":
+        selected_trait = st.selectbox("Select Trait:", query_df['Behavior/Trait'].unique())
+        top_segments = query_df[query_df['Behavior/Trait'] == selected_trait].sort_values(by="Index", ascending=False)
+        st.dataframe(top_segments[['Segment', 'Index', 'Vertical %', 'Sample (000)']].head(5), use_container_width=True)
+        
+    elif query_type == "What is the total sample size for a specific segment?":
+        selected_segment = st.selectbox("Select Segment:", query_df['Segment'].unique())
+        base_size = len(df[df[target_col] == selected_segment])
+        st.metric(label=f"Total Respondents in '{selected_segment}'", value=f"{base_size:,}")
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-if prompt := st.chat_input("Ask a question about your data (e.g., 'Which segment over-indexes on checking labels?')"):
-    if not api_key:
-        st.error("⚠️ Please enter your Gemini API Key in the sidebar to use the Q&A feature.")
-    else:
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        with st.chat_message("assistant"):
-            message_placeholder = st.empty()
-            try:
-                genai.configure(api_key=api_key)
-                # Using gemini-1.5-flash as it is fast and excellent for data reasoning
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                
-                data_context = f"Here is a summary of the raw survey data uploaded:\n{df.describe(include='all').to_string()}\n\n"
-                
-                if 'crosstab_results' in st.session_state:
-                    data_context += f"Here are the most recently run Simmons Crosstab Results (showing Vertical % and Index scores):\n{st.session_state['crosstab_results'].to_string()}\n\n"
-                
-                full_prompt = f"""You are a brilliant brand strategist and data analyst at the agency Roundpeg. 
-                Analyze the provided survey data and crosstab results to answer the user's question.
-                If they ask about an index, refer to the 'Index' columns in the Crosstab Results. Remember: an Index over 115 is significant.
-                Keep your answers concise, insightful, and focused on strategic implications for the brand. Do not show your work, just provide the insight.
-                
-                {data_context}
-                
-                User Question: {prompt}"""
-                
-                response = model.generate_content(full_prompt)
-                message_placeholder.markdown(response.text)
-                st.session_state.messages.append({"role": "assistant", "content": response.text})
-            except Exception as e:
-                st.error(f"Error communicating with AI: {e}")
+else:
+    st.info("👆 Run the Simmons Math Engine above to unlock quick queries!")
