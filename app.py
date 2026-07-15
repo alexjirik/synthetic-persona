@@ -43,6 +43,11 @@ st.sidebar.markdown("### 📥 1. Ingest Data")
 # UPGRADE: Now accepts both CSV and Excel (.xlsx) files
 uploaded_file = st.sidebar.file_uploader("Upload Survey Data (CSV or Excel)", type=['csv', 'xlsx'])
 
+# UPGRADE: Added Data Cleaning controls for messy Simmons/Survey exports
+st.sidebar.markdown("#### 🧹 Data Cleaning Options")
+skip_rows = st.sidebar.number_input("Skip Top Rows (if headers aren't first)", min_value=0, value=0, step=1, help="Simmons exports often have 2-5 rows of junk text before the actual headers start. Increase this number to skip them.")
+drop_unnamed = st.sidebar.checkbox("Auto-Drop 'Unnamed' Columns", value=True, help="Automatically removes columns that Pandas couldn't find a name for.")
+
 # Helper function to generate mock survey data including the new mindset
 @st.cache_data
 def generate_mock_survey_data():
@@ -75,12 +80,21 @@ def generate_mock_survey_data():
     return df
 
 if uploaded_file is not None:
-    # UPGRADE: Logic to route to the correct Pandas reader
+    # UPGRADE: Logic to route to the correct Pandas reader AND apply cleaning
     if uploaded_file.name.endswith('.csv'):
-        df = pd.read_csv(uploaded_file)
+        df = pd.read_csv(uploaded_file, skiprows=skip_rows)
     elif uploaded_file.name.endswith('.xlsx'):
-        df = pd.read_excel(uploaded_file)
-    st.sidebar.success(f"Data from '{uploaded_file.name}' loaded successfully!")
+        df = pd.read_excel(uploaded_file, skiprows=skip_rows)
+        
+    # AUTOMATIC CLEANING: Drop completely empty rows and columns
+    df = df.dropna(how='all', axis=1)
+    df = df.dropna(how='all', axis=0)
+    
+    # AUTOMATIC CLEANING: Remove 'Unnamed' artifact columns
+    if drop_unnamed:
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+        
+    st.sidebar.success(f"Data loaded & cleaned! ({df.shape[0]} rows, {df.shape[1]} columns)")
 else:
     st.sidebar.info("Using Mock Survey Data for Demonstration.")
     df = generate_mock_survey_data()
