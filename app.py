@@ -169,22 +169,25 @@ if st.sidebar.button("Run Simmons Math Engine"):
             # Flatten the MultiIndex to prevent Streamlit rendering errors
             pivot_df.columns = [f"{col[1]} | {col[0]}" for col in pivot_df.columns]
             
-            def style_simmons_table(styler):
-                    format_dict[col] = "{:.1%}"
-                elif 'Index' in col:
-                    format_dict[col] = "{:.0f}"
-            styler.format(format_dict)
-            
             def color_index(val):
                 if pd.isna(val): return ''
                 if val > 115: return 'color: #155724; background-color: #d4edda; font-weight: bold;'
                 elif val < 85: return 'color: #721c24; background-color: #f8d7da;'
                 return ''
-            
-            # Apply styling strictly to the flattened Index columns
-            index_cols = [c for c in pivot_df.columns if 'Index' in c]
-            styler.map(color_index, subset=index_cols)
-            return styler
+
+            def style_simmons_table(styler):
+                format_dict = {}
+                for col in pivot_df.columns:
+                    if 'Vertical %' in col:
+                        format_dict[col] = "{:.1%}"
+                    elif 'Index' in col:
+                        format_dict[col] = "{:.0f}"
+                styler.format(format_dict)
+                
+                # Apply styling strictly to the flattened Index columns
+                index_cols = [c for c in pivot_df.columns if 'Index' in c]
+                styler.map(color_index, subset=index_cols)
+                return styler
         
         # SAFEGUARD: Ensure we only render and save state if the dataframe exists
         if not results_df.empty:
