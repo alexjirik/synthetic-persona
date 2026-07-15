@@ -13,7 +13,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- STRATEGIC FRAMEWORK (From Screenshot 2026-07-09 at 9.59.18 AM.jpg) ---
+# --- STRATEGIC FRAMEWORK ---
 def render_strategic_framework():
     st.markdown("<div class='rp-header'>Growth Target Engine</div>", unsafe_allow_html=True)
     st.markdown("*Translating survey data into the Five Fundamental Truths.*")
@@ -40,37 +40,47 @@ render_strategic_framework()
 
 # --- 1. DATA INGESTION LAYER ---
 st.sidebar.markdown("### 📥 1. Ingest Data")
-uploaded_file = st.sidebar.file_uploader("Upload Raw Survey Data (CSV)", type=['csv'])
+# UPGRADE: Now accepts both CSV and Excel (.xlsx) files
+uploaded_file = st.sidebar.file_uploader("Upload Survey Data (CSV or Excel)", type=['csv', 'xlsx'])
 
-# Helper function to generate mock survey data if no file is uploaded
+# Helper function to generate mock survey data including the new mindset
 @st.cache_data
 def generate_mock_survey_data():
     np.random.seed(42)
     n_respondents = 5000
-    segments = ['Moment Makers', 'Expressive Escapists', 'Blue Mindset']
+    # UPGRADE: Added "Eating is Pure" to the segmentation
+    segments = ['Moment Makers', 'Expressive Escapists', 'Blue Mindset', 'Eating is Pure']
     data = {
         'Respondent_ID': range(1, n_respondents + 1),
-        'Mindset_Segment': np.random.choice(segments, n_respondents, p=[0.25, 0.15, 0.60]),
+        'Mindset_Segment': np.random.choice(segments, n_respondents, p=[0.20, 0.15, 0.45, 0.20]),
         'Trait: Life should be fun': np.random.choice(['Agree', 'Disagree'], n_respondents, p=[0.6, 0.4]),
-        'Trait: I am a born leader': np.random.choice(['Agree', 'Disagree'], n_respondents, p=[0.3, 0.7]),
         'Trait: Skeptical of ads': np.random.choice(['Agree', 'Disagree'], n_respondents, p=[0.5, 0.5]),
-        'Behavior: Attend Live Sports': np.random.choice(['Yes', 'No'], n_respondents, p=[0.4, 0.6]),
+        # Psychographic statements relevant to the new mindset
+        'Psychographic: I check ingredient labels': np.random.choice(['Agree', 'Disagree'], n_respondents, p=[0.4, 0.6]),
+        'Psychographic: I prefer organic foods': np.random.choice(['Agree', 'Disagree'], n_respondents, p=[0.3, 0.7]),
         'Behavior: Active on TikTok': np.random.choice(['Yes', 'No'], n_respondents, p=[0.35, 0.65])
     }
-    # Add intentional bias so indexes pop
+    
     df = pd.DataFrame(data)
-    # Bias Moment makers to live sports
-    df.loc[df['Mindset_Segment'] == 'Moment Makers', 'Behavior: Attend Live Sports'] = np.random.choice(['Yes', 'No'], len(df[df['Mindset_Segment'] == 'Moment Makers']), p=[0.8, 0.2])
-    # Bias Escapists to TikTok
+    
+    # Bias Moment makers
+    df.loc[df['Mindset_Segment'] == 'Moment Makers', 'Trait: Life should be fun'] = np.random.choice(['Agree', 'Disagree'], len(df[df['Mindset_Segment'] == 'Moment Makers']), p=[0.85, 0.15])
+    # Bias Escapists
     df.loc[df['Mindset_Segment'] == 'Expressive Escapists', 'Behavior: Active on TikTok'] = np.random.choice(['Yes', 'No'], len(df[df['Mindset_Segment'] == 'Expressive Escapists']), p=[0.85, 0.15])
-    # Bias Blue to Skeptical
-    df.loc[df['Mindset_Segment'] == 'Blue Mindset', 'Trait: Skeptical of ads'] = np.random.choice(['Agree', 'Disagree'], len(df[df['Mindset_Segment'] == 'Blue Mindset']), p=[0.75, 0.25])
+    
+    # BIAS "Eating is Pure" so the Index pops in the Math Engine
+    df.loc[df['Mindset_Segment'] == 'Eating is Pure', 'Psychographic: I check ingredient labels'] = np.random.choice(['Agree', 'Disagree'], len(df[df['Mindset_Segment'] == 'Eating is Pure']), p=[0.90, 0.10])
+    df.loc[df['Mindset_Segment'] == 'Eating is Pure', 'Psychographic: I prefer organic foods'] = np.random.choice(['Agree', 'Disagree'], len(df[df['Mindset_Segment'] == 'Eating is Pure']), p=[0.88, 0.12])
     
     return df
 
 if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-    st.sidebar.success("Data loaded successfully!")
+    # UPGRADE: Logic to route to the correct Pandas reader
+    if uploaded_file.name.endswith('.csv'):
+        df = pd.read_csv(uploaded_file)
+    elif uploaded_file.name.endswith('.xlsx'):
+        df = pd.read_excel(uploaded_file)
+    st.sidebar.success(f"Data from '{uploaded_file.name}' loaded successfully!")
 else:
     st.sidebar.info("Using Mock Survey Data for Demonstration.")
     df = generate_mock_survey_data()
@@ -86,33 +96,21 @@ if st.sidebar.button("Run Simmons Math Engine"):
         
         results = []
         total_population = len(df)
-        
-        # Calculate Base Sizes for Truth #3 (Size-of-Prize)
         target_sizes = df[target_col].value_counts()
         
         for behavior in behavior_cols:
-            # Assume we are tracking the "Positive" response (e.g., "Agree" or "Yes")
-            # In a real app, you'd let the user select the target response value
             positive_responses = df[behavior].unique()
             target_response = positive_responses[0] if 'Agree' in positive_responses or 'Yes' in positive_responses else positive_responses[0]
             
-            # Total population behavior metrics
             total_behavior_count = len(df[df[behavior] == target_response])
-            total_vertical_pct = total_behavior_count / total_population
+            total_vertical_pct = total_behavior_count / total_population if total_population > 0 else 0
             
             for target_segment in target_sizes.index:
                 segment_size = target_sizes[target_segment]
-                
-                # Count of Target in Base (How many Moment Makers said "Yes" to Live Sports)
                 target_in_base = len(df[(df[target_col] == target_segment) & (df[behavior] == target_response)])
                 
-                # Vertical %: Of all Moment Makers, what % like Live Sports?
                 vertical_pct = target_in_base / segment_size if segment_size > 0 else 0
-                
-                # Horizontal %: Of everyone who likes Live Sports, what % are Moment Makers?
                 horizontal_pct = target_in_base / total_behavior_count if total_behavior_count > 0 else 0
-                
-                # Index: How much more likely is a Moment Maker to like Live Sports vs the Gen Pop?
                 index_score = (vertical_pct / total_vertical_pct) * 100 if total_vertical_pct > 0 else 0
                 
                 results.append({
@@ -129,15 +127,11 @@ if st.sidebar.button("Run Simmons Math Engine"):
         # --- DISPLAY RESULTS ---
         st.markdown("### 📊 Audience Predispositions")
         
-        # Pivot the table to look like standard MRI Simmons output
         pivot_df = results_df.pivot(index="Behavior/Trait", columns="Segment", values=["Vertical %", "Index"])
-        
-        # Flatten the MultiIndex for easier reading
+        # Flatten the MultiIndex to prevent Streamlit rendering errors
         pivot_df.columns = [f"{col[1]} | {col[0]}" for col in pivot_df.columns]
         
-        # Formatting function for Pandas Styler
         def style_simmons_table(styler):
-            # Format percentages and indexes
             format_dict = {}
             for col in pivot_df.columns:
                 if 'Vertical' in col:
@@ -146,17 +140,17 @@ if st.sidebar.button("Run Simmons Math Engine"):
                     format_dict[col] = "{:.0f}"
             styler.format(format_dict)
             
-            # Color code the indexes (Truth #1: Predisposition)
             def color_index(val):
                 if pd.isna(val): return ''
-                if val > 115: return 'color: #155724; background-color: #d4edda; font-weight: bold;' # Strong positive
-                elif val < 85: return 'color: #721c24; background-color: #f8d7da;' # Strong negative
+                if val > 115: return 'color: #155724; background-color: #d4edda; font-weight: bold;'
+                elif val < 85: return 'color: #721c24; background-color: #f8d7da;'
                 return ''
             
+            # Apply styling strictly to the flattened Index columns
             index_cols = [c for c in pivot_df.columns if 'Index' in c]
             styler.map(color_index, subset=index_cols)
             return styler
         
         st.dataframe(pivot_df.style.pipe(style_simmons_table), use_container_width=True, height=400)
         
-        st.info("💡 **How to read this:** Green highlights indicate an Index over 115, revealing a strong **Predisposition (Truth #1)**. Red indicates an index below 85.")
+        st.info("💡 **How to read this:** Notice how the **Eating is Pure** mindset drastically over-indexes on organic preferences and label checking, validating the psychographic profile.")
