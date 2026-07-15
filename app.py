@@ -159,17 +159,17 @@ if st.sidebar.button("Run Simmons Math Engine"):
         
         results_df = pd.DataFrame(results)
         
-        # --- DISPLAY RESULTS ---
-        st.markdown("### 📊 Audience Predispositions")
-        
-        pivot_df = results_df.pivot(index="Behavior/Trait", columns="Segment", values=["Vertical %", "Index"])
-        # Flatten the MultiIndex to prevent Streamlit rendering errors
-        pivot_df.columns = [f"{col[1]} | {col[0]}" for col in pivot_df.columns]
-        
-        def style_simmons_table(styler):
-            format_dict = {}
-            for col in pivot_df.columns:
-                if 'Vertical' in col:
+        if results_df.empty:
+            st.warning("⚠️ No valid data could be calculated. Please check your selected rows/columns or adjust your data cleaning settings.")
+        else:
+            # --- DISPLAY RESULTS ---
+            st.markdown("### 📊 Audience Predispositions")
+            
+            pivot_df = results_df.pivot(index="Behavior/Trait", columns="Segment", values=["Vertical %", "Index"])
+            # Flatten the MultiIndex to prevent Streamlit rendering errors
+            pivot_df.columns = [f"{col[1]} | {col[0]}" for col in pivot_df.columns]
+            
+            def style_simmons_table(styler):
                     format_dict[col] = "{:.1%}"
                 elif 'Index' in col:
                     format_dict[col] = "{:.0f}"
@@ -186,12 +186,14 @@ if st.sidebar.button("Run Simmons Math Engine"):
             styler.map(color_index, subset=index_cols)
             return styler
         
-        st.dataframe(pivot_df.style.pipe(style_simmons_table), use_container_width=True, height=400)
-        
-        st.info("💡 **How to read this:** Notice how the **Eating is Pure** mindset drastically over-indexes on organic preferences and label checking, validating the psychographic profile.")
-        
-        # Save the flat results DataFrame for the Query Engine
-        st.session_state['crosstab_results_flat'] = results_df
+        # SAFEGUARD: Ensure we only render and save state if the dataframe exists
+        if not results_df.empty:
+            st.dataframe(pivot_df.style.pipe(style_simmons_table), use_container_width=True, height=400)
+            
+            st.info("💡 **How to read this:** Notice how the **Eating is Pure** mindset drastically over-indexes on organic preferences and label checking, validating the psychographic profile.")
+            
+            # Save the flat results DataFrame for the Query Engine
+            st.session_state['crosstab_results_flat'] = results_df
 
 # --- 4. QUICK DATA QUERIES (NO AI) ---
 st.markdown("---")
