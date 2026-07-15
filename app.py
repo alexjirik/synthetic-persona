@@ -123,8 +123,19 @@ if st.sidebar.button("Run Simmons Math Engine"):
         target_sizes = df[target_col].value_counts()
         
         for behavior in behavior_cols:
-            positive_responses = df[behavior].unique()
-            target_response = positive_responses[0] if 'Agree' in positive_responses or 'Yes' in positive_responses else positive_responses[0]
+            # FIX: Drop empty cells so we don't accidentally count blanks (NaNs)
+            valid_responses = df[behavior].dropna().unique()
+            if len(valid_responses) == 0:
+                continue # Skip this column if it's completely empty
+            
+            # FIX: Smartly detect the affirmative answer
+            target_response = valid_responses[0] # Fallback
+            for resp in valid_responses:
+                resp_str = str(resp).strip().lower()
+                # Look for common survey "Top Box" answers
+                if resp_str in ['agree', 'strongly agree', 'yes', '1', '1.0', 'true', 'checked']:
+                    target_response = resp
+                    break
             
             total_behavior_count = len(df[df[behavior] == target_response])
             total_vertical_pct = total_behavior_count / total_population if total_population > 0 else 0
