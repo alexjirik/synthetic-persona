@@ -101,8 +101,18 @@ else:
 
 # --- 2. QUERY BUILDER ---
 st.sidebar.markdown("### ⚙️ 2. Cross-Tab Settings")
-target_col = st.sidebar.selectbox("Select Target Variable (Columns)", df.columns, index=1)
-behavior_cols = st.sidebar.multiselect("Select Behaviors/Traits (Rows)", [c for c in df.columns if c not in ['Respondent_ID', target_col]], default=[c for c in df.columns if c not in ['Respondent_ID', target_col]])
+
+# SAFEGUARD: Ensure the dataframe actually has columns before trying to build selectors
+if len(df.columns) > 0:
+    # Safely assign the default index (use index 1 if it exists, otherwise use index 0)
+    default_index = 1 if len(df.columns) > 1 else 0
+    target_col = st.sidebar.selectbox("Select Target Variable (Columns)", df.columns, index=default_index)
+    
+    available_cols = [c for c in df.columns if c not in ['Respondent_ID', target_col]]
+    behavior_cols = st.sidebar.multiselect("Select Behaviors/Traits (Rows)", available_cols, default=available_cols)
+else:
+    st.sidebar.error("No valid columns detected! Try adjusting the 'Skip Top Rows' setting.")
+    st.stop() # Stops the rest of the app from crashing while you adjust settings
 
 # --- 3. THE MATH ENGINE ---
 if st.sidebar.button("Run Simmons Math Engine"):
