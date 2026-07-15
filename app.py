@@ -1,402 +1,162 @@
 import streamlit as st
-import streamlit.components.v1 as components
+import pandas as pd
+import numpy as np
 
-st.set_page_config(page_title="Roundpeg | Mindset Engine", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Roundpeg | Growth Target Engine", layout="wide")
 
+# --- CUSTOM CSS ---
 st.markdown("""
     <style>
-        /* Remove all default Streamlit padding so the dashboard takes up the whole screen */
-        .block-container {
-            padding-top: 0rem;
-            padding-bottom: 0rem;
-            padding-left: 0rem;
-            padding-right: 0rem;
-            max-width: 100%;
-        }
-        header {visibility: hidden;}
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
+    .rp-header { color: #F26A21; font-weight: 800; font-size: 2rem; }
+    .truth-box { background-color: #f8f9fa; padding: 15px; border-left: 5px solid #F26A21; margin-bottom: 20px; border-radius: 4px; }
+    .truth-title { font-weight: bold; color: #343a40; text-transform: uppercase; font-size: 0.85rem;}
     </style>
 """, unsafe_allow_html=True)
 
-html_code = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roundpeg | Synthetic Mindset Engine</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; padding: 0;}
-        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
-        .rp-orange { color: #F26A21; }
-        .bg-rp-orange { background-color: #F26A21; }
-        .border-rp-orange { border-color: #F26A21; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    </style>
-</head>
-<body class="h-screen flex overflow-hidden text-slate-800">
-
-    <!-- Sidebar -->
-    <aside class="w-64 bg-slate-900 text-white flex flex-col justify-between hidden md:flex shrink-0">
-        <div>
-            <div class="h-16 flex items-center px-6 border-b border-slate-800">
-                <i class="fa-solid fa-layer-group text-2xl mr-3 rp-orange"></i>
-                <span class="text-lg font-bold tracking-wider">ROUNDPEG</span>
+# --- STRATEGIC FRAMEWORK (From Screenshot 2026-07-09 at 9.59.18 AM.jpg) ---
+def render_strategic_framework():
+    st.markdown("<div class='rp-header'>Growth Target Engine</div>", unsafe_allow_html=True)
+    st.markdown("*Translating survey data into the Five Fundamental Truths.*")
+    
+    cols = st.columns(5)
+    truths = [
+        ("1. Create Advocates", "Purchase intent is fleeting, predisposition is forever."),
+        ("2. Ensure Differentiation", "Growth targets aren't created in a vacuum, they're created in the real world."),
+        ("3. Expand Size-of-Prize", "A Growth Target gets you where you want to go."),
+        ("4. Focus Activation", "A master brand Growth Target is key to where you want a brand to go."),
+        ("5. Generate Empathy", "Game-changing growth requires both clarity & conviction.")
+    ]
+    
+    for col, (title, desc) in zip(cols, truths):
+        with col:
+            st.markdown(f"""
+            <div class="truth-box">
+                <div class="truth-title">{title}</div>
+                <div style="font-size: 0.8rem; margin-top: 5px; color: #6c757d;">{desc}</div>
             </div>
-            <nav class="p-4 space-y-2" id="sidebar-nav">
-                <a href="#" onclick="switchTab('synthesis')" id="nav-synthesis" class="nav-item flex items-center space-x-3 bg-slate-800 text-white px-4 py-3 rounded-lg font-medium transition-colors">
-                    <i class="fa-solid fa-brain w-5"></i>
-                    <span>Synthesis Engine</span>
-                </a>
-                <a href="#" onclick="switchTab('crosstabs')" id="nav-crosstabs" class="nav-item flex items-center space-x-3 text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-lg font-medium transition-colors">
-                    <i class="fa-solid fa-chart-pie w-5"></i>
-                    <span>Simmons Crosstabs</span>
-                </a>
-                <a href="#" onclick="switchTab('qual')" id="nav-qual" class="nav-item flex items-center space-x-3 text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-lg font-medium transition-colors">
-                    <i class="fa-solid fa-book-open w-5"></i>
-                    <span>Qual Repository</span>
-                </a>
-            </nav>
-        </div>
-        <div class="p-4 border-t border-slate-800">
-            <div class="flex items-center space-x-3">
-                <div class="w-8 h-8 rounded-full bg-rp-orange flex items-center justify-center text-sm font-bold">
-                    S
-                </div>
-                <div class="text-sm">
-                    <p class="font-medium">Strategist</p>
-                    <p class="text-slate-400 text-xs">Sandbox Mode</p>
-                </div>
-            </div>
-        </div>
-    </aside>
+            """, unsafe_allow_html=True)
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+render_strategic_framework()
+
+# --- 1. DATA INGESTION LAYER ---
+st.sidebar.markdown("### 📥 1. Ingest Data")
+uploaded_file = st.sidebar.file_uploader("Upload Raw Survey Data (CSV)", type=['csv'])
+
+# Helper function to generate mock survey data if no file is uploaded
+@st.cache_data
+def generate_mock_survey_data():
+    np.random.seed(42)
+    n_respondents = 5000
+    segments = ['Moment Makers', 'Expressive Escapists', 'Blue Mindset']
+    data = {
+        'Respondent_ID': range(1, n_respondents + 1),
+        'Mindset_Segment': np.random.choice(segments, n_respondents, p=[0.25, 0.15, 0.60]),
+        'Trait: Life should be fun': np.random.choice(['Agree', 'Disagree'], n_respondents, p=[0.6, 0.4]),
+        'Trait: I am a born leader': np.random.choice(['Agree', 'Disagree'], n_respondents, p=[0.3, 0.7]),
+        'Trait: Skeptical of ads': np.random.choice(['Agree', 'Disagree'], n_respondents, p=[0.5, 0.5]),
+        'Behavior: Attend Live Sports': np.random.choice(['Yes', 'No'], n_respondents, p=[0.4, 0.6]),
+        'Behavior: Active on TikTok': np.random.choice(['Yes', 'No'], n_respondents, p=[0.35, 0.65])
+    }
+    # Add intentional bias so indexes pop
+    df = pd.DataFrame(data)
+    # Bias Moment makers to live sports
+    df.loc[df['Mindset_Segment'] == 'Moment Makers', 'Behavior: Attend Live Sports'] = np.random.choice(['Yes', 'No'], len(df[df['Mindset_Segment'] == 'Moment Makers']), p=[0.8, 0.2])
+    # Bias Escapists to TikTok
+    df.loc[df['Mindset_Segment'] == 'Expressive Escapists', 'Behavior: Active on TikTok'] = np.random.choice(['Yes', 'No'], len(df[df['Mindset_Segment'] == 'Expressive Escapists']), p=[0.85, 0.15])
+    # Bias Blue to Skeptical
+    df.loc[df['Mindset_Segment'] == 'Blue Mindset', 'Trait: Skeptical of ads'] = np.random.choice(['Agree', 'Disagree'], len(df[df['Mindset_Segment'] == 'Blue Mindset']), p=[0.75, 0.25])
+    
+    return df
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    st.sidebar.success("Data loaded successfully!")
+else:
+    st.sidebar.info("Using Mock Survey Data for Demonstration.")
+    df = generate_mock_survey_data()
+
+# --- 2. QUERY BUILDER ---
+st.sidebar.markdown("### ⚙️ 2. Cross-Tab Settings")
+target_col = st.sidebar.selectbox("Select Target Variable (Columns)", df.columns, index=1)
+behavior_cols = st.sidebar.multiselect("Select Behaviors/Traits (Rows)", [c for c in df.columns if c not in ['Respondent_ID', target_col]], default=[c for c in df.columns if c not in ['Respondent_ID', target_col]])
+
+# --- 3. THE MATH ENGINE ---
+if st.sidebar.button("Run Simmons Math Engine"):
+    with st.spinner("Crunching vertical, horizontal, and index metrics..."):
         
-        <!-- Header -->
-        <header class="h-16 glass-panel flex items-center justify-between px-8 shrink-0 z-10">
-            <div>
-                <h1 class="text-xl font-bold text-slate-800">Synthetic Mindset Engine</h1>
-                <p class="text-xs text-slate-500 font-medium tracking-wide uppercase">Fusing Quant Predispositions with Qual Truths</p>
-            </div>
-            <div class="flex space-x-4">
-                <button class="px-4 py-2 bg-rp-orange text-white rounded-md text-sm font-medium shadow-sm flex items-center cursor-default">
-                    <i class="fa-solid fa-check-circle mr-2"></i> Dashboard Active
-                </button>
-            </div>
-        </header>
-
-        <!-- Content Area: Synthesis Engine -->
-        <div id="view-synthesis" class="flex-1 overflow-y-auto p-8">
+        results = []
+        total_population = len(df)
+        
+        # Calculate Base Sizes for Truth #3 (Size-of-Prize)
+        target_sizes = df[target_col].value_counts()
+        
+        for behavior in behavior_cols:
+            # Assume we are tracking the "Positive" response (e.g., "Agree" or "Yes")
+            # In a real app, you'd let the user select the target response value
+            positive_responses = df[behavior].unique()
+            target_response = positive_responses[0] if 'Agree' in positive_responses or 'Yes' in positive_responses else positive_responses[0]
             
-            <!-- Segment Selector -->
-            <div class="mb-8">
-                <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Select Mindset Target</h2>
-                <div class="flex flex-wrap gap-2" id="segment-selector">
-                    <!-- Buttons injected via JS -->
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            # Total population behavior metrics
+            total_behavior_count = len(df[df[behavior] == target_response])
+            total_vertical_pct = total_behavior_count / total_population
+            
+            for target_segment in target_sizes.index:
+                segment_size = target_sizes[target_segment]
                 
-                <!-- Left Column: The Simmons Quant Layer -->
-                <div class="xl:col-span-1 space-y-6">
-                    
-                    <!-- KPI Cards -->
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
-                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Pop Size</p>
-                            <p class="text-2xl font-bold text-slate-800" id="ui-pop-size">--</p>
-                            <p class="text-xs text-emerald-500 font-medium mt-1"><i class="fa-solid fa-arrow-trend-up mr-1"></i> Highly Viable</p>
-                        </div>
-                        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
-                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Median HHI</p>
-                            <p class="text-2xl font-bold text-slate-800" id="ui-hhi">--</p>
-                            <p class="text-xs text-slate-400 font-medium mt-1">Above Average</p>
-                        </div>
-                    </div>
-
-                    <!-- Chart -->
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                        <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center">
-                            <i class="fa-solid fa-chart-bar mr-2 text-slate-400"></i> Top Indexing Traits
-                        </h3>
-                        <div class="relative h-64 w-full">
-                            <canvas id="indexChart"></canvas>
-                        </div>
-                        <p class="text-[10px] text-slate-400 text-center mt-3">*Simmons Index: >120 is significant</p>
-                    </div>
-
-                    <!-- Demos -->
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                        <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center">
-                            <i class="fa-solid fa-users mr-2 text-slate-400"></i> Defining Demographics
-                        </h3>
-                        <ul class="space-y-3 text-sm text-slate-600" id="ui-demos">
-                            <!-- Injected via JS -->
-                        </ul>
-                    </div>
-
-                </div>
-
-                <!-- Right Column: The Qualitative Layer -->
-                <div class="xl:col-span-2 space-y-6">
-                    
-                    <!-- Header -->
-                    <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-100 relative overflow-hidden">
-                        <div class="absolute top-0 left-0 w-1.5 h-full bg-rp-orange"></div>
-                        <h2 class="text-3xl font-extrabold text-slate-800 mb-2" id="ui-title">Select a Mindset</h2>
-                        <p class="text-lg text-slate-500 italic" id="ui-tagline">...</p>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        
-                        <!-- Anthropology -->
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                            <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center uppercase tracking-wide">
-                                <i class="fa-solid fa-globe mr-2 rp-orange"></i> Online Anthropology
-                            </h3>
-                            <p class="text-sm text-slate-600 leading-relaxed mb-4" id="ui-anthro">...</p>
-                            <div class="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                                <p class="text-xs font-bold text-slate-500 uppercase mb-2">Media Diet</p>
-                                <p class="text-sm font-medium text-slate-700" id="ui-media">...</p>
-                            </div>
-                        </div>
-
-                        <!-- Brand & Motivations -->
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                            <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center uppercase tracking-wide">
-                                <i class="fa-solid fa-heart mr-2 rp-orange"></i> Values & Motivations
-                            </h3>
-                            <div class="space-y-4">
-                                <div>
-                                    <p class="text-xs font-bold text-slate-500 uppercase mb-1">What they value</p>
-                                    <p class="text-sm text-slate-600" id="ui-value">...</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs font-bold text-slate-500 uppercase mb-1">Top Motivations</p>
-                                    <p class="text-sm text-slate-600" id="ui-motivations">...</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- The Human Truth -->
-                    <div class="bg-slate-800 p-8 rounded-xl shadow-lg border border-slate-700 text-white relative overflow-hidden">
-                        <div class="absolute -right-10 -top-10 opacity-10">
-                            <i class="fa-solid fa-quote-right text-9xl"></i>
-                        </div>
-                        <h3 class="text-xs font-bold text-rp-orange mb-4 flex items-center uppercase tracking-widest">
-                            <i class="fa-solid fa-bolt mr-2"></i> The Human Truth
-                        </h3>
-                        
-                        <div class="mb-5">
-                            <p class="text-xs text-slate-400 uppercase font-bold mb-1 tracking-wide">The Tension</p>
-                            <p class="text-base font-medium leading-relaxed" id="ui-tension">...</p>
-                        </div>
-                        
-                        <div class="pt-5 border-t border-slate-700">
-                            <p class="text-xs text-slate-400 uppercase font-bold mb-1 tracking-wide">The Ultimate Truth</p>
-                            <p class="text-lg font-bold leading-relaxed text-rp-orange" id="ui-truth">...</p>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-
-        <!-- Content Area: Simmons Crosstabs (Placeholder) -->
-        <div id="view-crosstabs" class="flex-1 overflow-y-auto p-8 hidden flex flex-col items-center justify-center">
-             <i class="fa-solid fa-chart-pie text-6xl text-slate-300 mb-6"></i>
-             <h2 class="text-3xl font-bold text-slate-700 mb-2">Simmons Crosstabs</h2>
-             <p class="text-slate-500">The quantitative data engine is currently being built.</p>
-        </div>
-
-        <!-- Content Area: Qual Repository (Placeholder) -->
-        <div id="view-qual" class="flex-1 overflow-y-auto p-8 hidden flex flex-col items-center justify-center">
-             <i class="fa-solid fa-book-open text-6xl text-slate-300 mb-6"></i>
-             <h2 class="text-3xl font-bold text-slate-700 mb-2">Qualitative Repository</h2>
-             <p class="text-slate-500">Upload and manage interview transcripts and ethnographies here.</p>
-        </div>
-
-    </main>
-
-    <script>
-        // The Roundpeg Mindset Database 
-        const mindsetData = {
-            "Moment Makers": {
-                tagline: "Capable, competent and charismatic. Driven, confident, and fueled by purpose and pride.",
-                popSize: "15.0M",
-                hhi: "$104K",
-                anthro: "Leisure means sports and getting outdoors (Freshwater fishing, weight lifting). They are highly engaged with live, high-adrenaline sports like UFC and NFL.",
-                media: "Informative, practical, and action-oriented. Heavy consumers of Consumer Reports and sports broadcasting.",
-                value: "Power, Performance, Passion. They want to know what goes on 'under the hood'.",
-                motivations: "Excitement, connection, and letting loose. They consider themselves enthusiasts and born leaders.",
-                tension: "They crave raw, unfiltered experiences but feel increasingly boxed in by a digitized, hands-off world that lacks tangible thrills.",
-                truth: "They need brands that deliver tangible power and performance, enabling them to assert their presence, mastery, and let loose.",
-                demos: [
-                    "Generation X & Older Millennials (Index: 125)",
-                    "Married with children (Index: 115)",
-                    "Employed Full Time (Index: 134)"
-                ],
-                chartLabels: ["I am a born leader", "Good at fixing things", "Under the hood interest", "Life should be fun", "Sacrifice for family"],
-                chartData: [135, 184, 150, 142, 120]
-            },
-            "Expressive Escapists": {
-                tagline: "Determined, discerning, and developing. They use standout choices as a personal canvas.",
-                popSize: "4.5M",
-                hhi: "$88K",
-                anthro: "Social media is their stage. They are disproportionately engaged with pop culture, hip-hop concerts, and use digital media to maintain a high-visibility social status.",
-                media: "Connection and entertainment. Highly influenced by celebrities, influencers, and trending visual platforms.",
-                value: "Fun, Freedom, and Fashionable aesthetics. Exterior styling is their absolute first consideration.",
-                motivations: "They want to be seen, celebrated, and set apart. They seek spirited performance that matches their energy.",
-                tension: "They want to assert their unique identity but struggle to find platforms and products that feel truly authentic rather than mass-produced.",
-                truth: "They gravitate toward brands that act as amplifiers for their personality, offering bold, innovative designs that stand apart.",
-                demos: [
-                    "Gen Z & Younger Millennials (Index: 143)",
-                    "Single / Unmarried (Index: 128)",
-                    "Urban / Metro Centers (Index: 135)"
-                ],
-                chartLabels: ["Car expresses personality", "Stand out in a crowd", "Thrills & Recognition", "Exterior styling is #1", "Spontaneous behavior"],
-                chartData: [166, 176, 148, 187, 133]
-            },
-            "Blue Mindset": {
-                tagline: "Grounded, practical, and content. They find fulfillment in routine and close connections.",
-                popSize: "42.9M",
-                hhi: "$99K",
-                anthro: "They consume media carefully, favoring substance over flash. They are skeptical of advertising and prefer thoughtful content that informs rather than distracts.",
-                media: "PBS, Consumer Reports, The Atlantic, and documentaries. Quiet, reliable information sources.",
-                value: "Dependability, practicality, and a well-ordered life. They avoid unnecessary risks and flashy upgrades.",
-                motivations: "Quiet enjoyment, protecting their family, and maintaining a comfortable standard of living.",
-                tension: "They are overwhelmed by the constant noise, flash, and anxiety of modern social expectations and digital culture.",
-                truth: "They require brands that are dependable, liberating, and simplify their lives without demanding excessive attention.",
-                demos: [
-                    "Baby Boomers & Gen X (Index: 130)",
-                    "Homeowners (Index: 118)",
-                    "Suburban/Rural (Index: 122)"
-                ],
-                chartLabels: ["Vehicle is just transport", "Perfectly happy w/ standard", "Family works well", "Skeptical of ads", "Set routines"],
-                chartData: [137, 130, 155, 144, 128]
-            }
-        };
-
-        let currentChart = null;
-
-        function loadMindset(name) {
-            const data = mindsetData[name];
+                # Count of Target in Base (How many Moment Makers said "Yes" to Live Sports)
+                target_in_base = len(df[(df[target_col] == target_segment) & (df[behavior] == target_response)])
+                
+                # Vertical %: Of all Moment Makers, what % like Live Sports?
+                vertical_pct = target_in_base / segment_size if segment_size > 0 else 0
+                
+                # Horizontal %: Of everyone who likes Live Sports, what % are Moment Makers?
+                horizontal_pct = target_in_base / total_behavior_count if total_behavior_count > 0 else 0
+                
+                # Index: How much more likely is a Moment Maker to like Live Sports vs the Gen Pop?
+                index_score = (vertical_pct / total_vertical_pct) * 100 if total_vertical_pct > 0 else 0
+                
+                results.append({
+                    "Behavior/Trait": f"{behavior} ({target_response})",
+                    "Segment": target_segment,
+                    "Sample (000)": target_in_base,
+                    "Vertical %": vertical_pct,
+                    "Horizontal %": horizontal_pct,
+                    "Index": index_score
+                })
+        
+        results_df = pd.DataFrame(results)
+        
+        # --- DISPLAY RESULTS ---
+        st.markdown("### 📊 Audience Predispositions")
+        
+        # Pivot the table to look like standard MRI Simmons output
+        pivot_df = results_df.pivot(index="Behavior/Trait", columns="Segment", values=["Vertical %", "Index"])
+        
+        # Flatten the MultiIndex for easier reading
+        pivot_df.columns = [f"{col[1]} | {col[0]}" for col in pivot_df.columns]
+        
+        # Formatting function for Pandas Styler
+        def style_simmons_table(styler):
+            # Format percentages and indexes
+            format_dict = {}
+            for col in pivot_df.columns:
+                if 'Vertical' in col:
+                    format_dict[col] = "{:.1%}"
+                elif 'Index' in col:
+                    format_dict[col] = "{:.0f}"
+            styler.format(format_dict)
             
-            // Update UI text
-            document.getElementById('ui-title').innerText = name;
-            document.getElementById('ui-tagline').innerText = `"${data.tagline}"`;
-            document.getElementById('ui-pop-size').innerText = data.popSize;
-            document.getElementById('ui-hhi').innerText = data.hhi;
-            document.getElementById('ui-anthro').innerText = data.anthro;
-            document.getElementById('ui-media').innerText = data.media;
-            document.getElementById('ui-value').innerText = data.value;
-            document.getElementById('ui-motivations').innerText = data.motivations;
-            document.getElementById('ui-tension').innerText = data.tension;
-            document.getElementById('ui-truth').innerText = data.truth;
-
-            // Update Demos
-            const demoList = document.getElementById('ui-demos');
-            demoList.innerHTML = '';
-            data.demos.forEach(d => {
-                demoList.innerHTML += `<li><i class="fa-solid fa-check text-emerald-500 mr-2"></i> ${d}</li>`;
-            });
-
-            // Update Active Button Style
-            document.querySelectorAll('.mindset-btn').forEach(btn => {
-                if(btn.innerText === name) {
-                    btn.classList.add('bg-slate-800', 'text-white', 'border-slate-800');
-                    btn.classList.remove('bg-white', 'text-slate-600', 'border-slate-200');
-                } else {
-                    btn.classList.remove('bg-slate-800', 'text-white', 'border-slate-800');
-                    btn.classList.add('bg-white', 'text-slate-600', 'border-slate-200');
-                }
-            });
-
-            // Render Chart
-            const ctx = document.getElementById('indexChart').getContext('2d');
-            if (currentChart) { currentChart.destroy(); }
-
-            currentChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: data.chartLabels,
-                    datasets: [{
-                        label: 'Simmons Index Score',
-                        data: data.chartData,
-                        backgroundColor: '#F26A21',
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        x: {
-                            beginAtZero: true,
-                            max: 200,
-                            grid: { color: '#f1f5f9' },
-                            ticks: { font: { size: 10 } }
-                        },
-                        y: {
-                            grid: { display: false },
-                            ticks: { font: { size: 11, family: 'Inter' } }
-                        }
-                    }
-                }
-            });
-        }
-
-        // Initialize Buttons
-        const selectorContainer = document.getElementById('segment-selector');
-        Object.keys(mindsetData).forEach(key => {
-            const btn = document.createElement('button');
-            btn.innerText = key;
-            btn.className = 'mindset-btn px-4 py-2 rounded-full text-sm font-medium border transition shadow-sm';
-            btn.onclick = () => loadMindset(key);
-            selectorContainer.appendChild(btn);
-        });
-
-        // Load default
-        loadMindset('Moment Makers');
-
-        // Sidebar Navigation Logic
-        function switchTab(tabId) {
-            // Hide all views
-            document.getElementById('view-synthesis').classList.add('hidden');
-            document.getElementById('view-crosstabs').classList.add('hidden');
-            document.getElementById('view-qual').classList.add('hidden');
-
-            // Reset all nav items
-            document.querySelectorAll('.nav-item').forEach(el => {
-                el.className = 'nav-item flex items-center space-x-3 text-slate-400 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-lg font-medium transition-colors';
-            });
-
-            // Show selected view
-            document.getElementById('view-' + tabId).classList.remove('hidden');
-
-            // Highlight selected nav item
-            document.getElementById('nav-' + tabId).className = 'nav-item flex items-center space-x-3 bg-slate-800 text-white px-4 py-3 rounded-lg font-medium transition-colors';
-        }
-
-    </script>
-</body>
-</html>
-"""
-
-components.html(html_code, height=900, scrolling=True)
+            # Color code the indexes (Truth #1: Predisposition)
+            def color_index(val):
+                if pd.isna(val): return ''
+                if val > 115: return 'color: #155724; background-color: #d4edda; font-weight: bold;' # Strong positive
+                elif val < 85: return 'color: #721c24; background-color: #f8d7da;' # Strong negative
+                return ''
+            
+            index_cols = [c for c in pivot_df.columns if 'Index' in c]
+            styler.map(color_index, subset=index_cols)
+            return styler
+        
+        st.dataframe(pivot_df.style.pipe(style_simmons_table), use_container_width=True, height=400)
+        
+        st.info("💡 **How to read this:** Green highlights indicate an Index over 115, revealing a strong **Predisposition (Truth #1)**. Red indicates an index below 85.")
