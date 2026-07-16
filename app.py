@@ -99,7 +99,14 @@ if uploaded_file is not None:
     if drop_unnamed:
         df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
         
-    st.sidebar.success(f"Data loaded & cleaned! ({df.shape[0]} rows, {df.shape[1]} columns)")
+    st.sidebar.success(f"Data loaded! ({df.shape[0]} rows, {df.shape[1]} columns)")
+    
+    # --- NEW: VISUAL FEEDBACK FOR CLEANING ---
+    st.markdown("### 👁️ File Preview")
+    st.info("💡 **Look at the table below.** If your column names (like 'Index' or 'Vertical %') are stuck as normal rows instead of being the bold headers at the top, increase the **'Skip Top Rows'** setting in the sidebar until they move up!")
+    st.dataframe(df.head(4), use_container_width=True)
+    st.markdown("---")
+    
 else:
     st.sidebar.info("Using Mock Survey Data for Demonstration.")
     df = generate_mock_survey_data()
