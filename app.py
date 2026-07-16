@@ -215,17 +215,22 @@ else:
     st.info("You selected 'Pre-Calculated Export'. Map your columns below so the Quick Queries engine can read them.")
     
     if len(df.columns) > 0:
+        # HELPER: Convert column index to Excel letters (A, B, C, etc.)
+        def excel_col(i):
+            letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            return letters[i] if i < 26 else letters[(i // 26) - 1] + letters[i % 26]
+
         col1, col2, col3 = st.columns(3)
         with col1:
-            trait_col = st.selectbox("Behavior/Trait Column", df.columns, index=0)
+            trait_idx = st.selectbox("Behavior/Trait Column", range(len(df.columns)), format_func=lambda i: f"Col {excel_col(i)}: {df.columns[i]}", index=0)
         with col2:
             # Try to guess the index column to save the user time
             guess_idx = next((i for i, c in enumerate(df.columns) if 'index' in str(c).lower()), 0)
-            index_col = st.selectbox("Index Column", df.columns, index=guess_idx)
+            index_idx = st.selectbox("Index Column", range(len(df.columns)), format_func=lambda i: f"Col {excel_col(i)}: {df.columns[i]}", index=guess_idx)
         with col3:
             # Try to guess the vertical % column
             guess_vert = next((i for i, c in enumerate(df.columns) if 'vert' in str(c).lower() or '%' in str(c)), 0)
-            vert_col = st.selectbox("Vertical % Column", df.columns, index=guess_vert)
+            vert_idx = st.selectbox("Vertical % Column", range(len(df.columns)), format_func=lambda i: f"Col {excel_col(i)}: {df.columns[i]}", index=guess_vert)
             
         segment_name = st.text_input("What is the name of this Target Audience?", value="Target Segment")
 
@@ -233,11 +238,16 @@ else:
             with st.spinner("Mapping data..."):
                 clean_df = df.copy()
                 
+                # Get the actual column names from the selected indices
+                trait_col_name = df.columns[trait_idx]
+                index_col_name = df.columns[index_idx]
+                vert_col_name = df.columns[vert_idx]
+                
                 # Clean the Index column (remove commas, convert to numbers)
-                clean_df['Clean_Index'] = pd.to_numeric(clean_df[index_col].astype(str).str.replace(',', ''), errors='coerce')
+                clean_df['Clean_Index'] = pd.to_numeric(clean_df[index_col_name].astype(str).str.replace(',', ''), errors='coerce')
                 
                 # Clean the Vertical % column (remove % signs, convert to decimals)
-                vert_clean = clean_df[vert_col].astype(str).str.replace('%', '').str.replace(',', '')
+                vert_clean = clean_df[vert_col_name].astype(str).str.replace('%', '').str.replace(',', '')
                 vert_numeric = pd.to_numeric(vert_clean, errors='coerce')
                 
                 # If the Excel file has 25.5 instead of 0.255, divide by 100 so the math works
@@ -248,7 +258,7 @@ else:
 
                 # Build the exact format the Query Engine expects
                 mapped_df = pd.DataFrame({
-                    "Behavior/Trait": clean_df[trait_col],
+                    "Behavior/Trait": clean_df[trait_col_name],
                     "Segment": segment_name,
                     "Index": clean_df['Clean_Index'],
                     "Vertical %": clean_df['Clean_Vert'],
