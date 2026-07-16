@@ -300,14 +300,24 @@ if 'crosstab_results_flat' in st.session_state:
     if query_type == "What are the highest indexing traits for a specific segment?":
         selected_segment = st.selectbox("Select Segment:", query_df['Segment'].unique())
         top_traits = query_df[query_df['Segment'] == selected_segment].sort_values(by="Index", ascending=False)
-        st.dataframe(top_traits[['Behavior/Trait', 'Index', 'Vertical %']].head(10).style.format({'Vertical %': '{:.1%}', 'Index': '{:.0f}'}), use_container_width=True)
+        st.dataframe(
+            top_traits[['Behavior/Trait', 'Index', 'Vertical %']].head(10).style
+            .format({'Vertical %': '{:.1%}', 'Index': '{:.0f}'})
+            .map(color_index, subset=['Index']), 
+            use_container_width=True
+        )
 
     elif query_type == "What are the lowest indexing traits (What do they actively avoid)?":
-        st.markdown("**Find Brand Rejections:** \n\nAn extremely low index (under 85) shows active rejection. These are things this audience avoids compared to the general population.")
+        st.markdown("**Find Brand Rejections:** \n\nAn extremely low index (under 80) shows active rejection. These are things this audience avoids compared to the general population.")
         selected_segment = st.selectbox("Select Segment:", query_df['Segment'].unique())
         # Filter out 0s to avoid junk data, then sort ascending to get the lowest numbers first
         bottom_traits = query_df[(query_df['Segment'] == selected_segment) & (query_df['Index'] > 0)].sort_values(by="Index", ascending=True)
-        st.dataframe(bottom_traits[['Behavior/Trait', 'Index', 'Vertical %']].head(10).style.format({'Vertical %': '{:.1%}', 'Index': '{:.0f}'}), use_container_width=True)
+        st.dataframe(
+            bottom_traits[['Behavior/Trait', 'Index', 'Vertical %']].head(10).style
+            .format({'Vertical %': '{:.1%}', 'Index': '{:.0f}'})
+            .map(color_index, subset=['Index']), 
+            use_container_width=True
+        )
         
     elif query_type == "Show me everything related to a specific keyword or theme.":
         st.markdown("**Keyword Search:** \n\nType a word like 'organic', 'TikTok', or 'family' to instantly find all related psychographics and see how they index.")
@@ -330,17 +340,21 @@ if 'crosstab_results_flat' in st.session_state:
             else:
                 st.success(f"Found {len(keyword_df)} traits related to '{search_term}'!")
                 st.dataframe(
-                    keyword_df[['Behavior/Trait', 'Index', 'Vertical %']].style.format({
-                        'Vertical %': '{:.1%}', 
-                        'Index': '{:.0f}'
-                    }), 
+                    keyword_df[['Behavior/Trait', 'Index', 'Vertical %']].style
+                    .format({'Vertical %': '{:.1%}', 'Index': '{:.0f}'})
+                    .map(color_index, subset=['Index']), 
                     use_container_width=True
                 )
         
     elif query_type == "Which segment indexes highest for a specific trait?":
         selected_trait = st.selectbox("Select Trait:", query_df['Behavior/Trait'].unique())
         top_segments = query_df[query_df['Behavior/Trait'] == selected_trait].sort_values(by="Index", ascending=False)
-        st.dataframe(top_segments[['Segment', 'Index', 'Vertical %', 'Sample (000)']].head(5), use_container_width=True)
+        st.dataframe(
+            top_segments[['Segment', 'Index', 'Vertical %', 'Sample (000)']].head(5).style
+            .format({'Vertical %': '{:.1%}', 'Index': '{:.0f}', 'Sample (000)': '{:,.0f}'})
+            .map(color_index, subset=['Index']), 
+            use_container_width=True
+        )
         
     elif query_type == "What is the total sample size for a specific segment?":
         selected_segment = st.selectbox("Select Segment:", query_df['Segment'].unique())
@@ -354,7 +368,7 @@ if 'crosstab_results_flat' in st.session_state:
         with col1:
             selected_segment = st.selectbox("Select Segment:", query_df['Segment'].unique())
         with col2:
-            min_index = st.number_input("Minimum Index Score", min_value=0, value=115, step=5)
+            min_index = st.number_input("Minimum Index Score", min_value=0, value=120, step=5)
         with col3:
             min_vertical = st.number_input("Minimum Vertical % (Reach)", min_value=0.0, value=25.0, step=5.0, format="%.1f")
         
@@ -370,10 +384,9 @@ if 'crosstab_results_flat' in st.session_state:
         else:
             st.success(f"Found {len(sweet_spot_df)} traits hitting the sweet spot!")
             st.dataframe(
-                sweet_spot_df[['Behavior/Trait', 'Index', 'Vertical %']].style.format({
-                    'Vertical %': '{:.1%}', 
-                    'Index': '{:.0f}'
-                }), 
+                sweet_spot_df[['Behavior/Trait', 'Index', 'Vertical %']].style
+                .format({'Vertical %': '{:.1%}', 'Index': '{:.0f}'})
+                .map(color_index, subset=['Index']), 
                 use_container_width=True
             )
 
