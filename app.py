@@ -99,104 +99,161 @@ else:
     st.sidebar.info("Using Mock Survey Data for Demonstration.")
     df = generate_mock_survey_data()
 
-# --- 2. QUERY BUILDER ---
-st.sidebar.markdown("### ⚙️ 2. Cross-Tab Settings")
+# NEW: Toggle between Raw Data and Pre-Calculated
+st.sidebar.markdown("---")
+data_format = st.sidebar.radio(
+    "📊 Data Format", 
+    ["Raw Respondent Data", "Pre-Calculated Export"],
+    help="Choose 'Raw' for row-by-row survey data. Choose 'Pre-Calculated' if you already have Index and Vert % columns."
+)
 
-# SAFEGUARD: Ensure the dataframe actually has columns before trying to build selectors
-if len(df.columns) > 0:
-    # Safely assign the default index (use index 1 if it exists, otherwise use index 0)
-    default_index = 1 if len(df.columns) > 1 else 0
-    target_col = st.sidebar.selectbox("Select Target Variable (Columns)", df.columns, index=default_index)
+if data_format == "Raw Respondent Data":
+    # --- 2. QUERY BUILDER (RAW DATA) ---
+    st.sidebar.markdown("### ⚙️ 2. Cross-Tab Settings")
     
-    available_cols = [c for c in df.columns if c not in ['Respondent_ID', target_col]]
-    behavior_cols = st.sidebar.multiselect("Select Behaviors/Traits (Rows)", available_cols, default=available_cols)
+    # SAFEGUARD: Ensure the dataframe actually has columns before trying to build selectors
+    if len(df.columns) > 0:
+        # Safely assign the default index (use index 1 if it exists, otherwise use index 0)
+        default_index = 1 if len(df.columns) > 1 else 0
+        target_col = st.sidebar.selectbox("Select Target Variable (Columns)", df.columns, index=default_index)
+        
+        available_cols = [c for c in df.columns if c not in ['Respondent_ID', target_col]]
+        behavior_cols = st.sidebar.multiselect("Select Behaviors/Traits (Rows)", available_cols, default=available_cols)
+    else:
+        st.sidebar.error("No valid columns detected! Try adjusting the 'Skip Top Rows' setting.")
+        st.stop()
+    
+    # --- 3. THE MATH ENGINE (RAW DATA) ---
+    if st.sidebar.button("Run Simmons Math Engine"):
+        with st.spinner("Crunching vertical, horizontal, and index metrics..."):
+            
+            results = []
+            total_population = len(df)
+            target_sizes = df[target_col].value_counts()
+            
+            for behavior in behavior_cols:
+                valid_responses = df[behavior].dropna().unique()
+                if len(valid_responses) == 0:
+                    continue
+                
+                target_response = valid_responses[0]
+                for resp in valid_responses:
+                    resp_str = str(resp).strip().lower()
+                    if resp_str in ['agree', 'strongly agree', 'yes', '1', '1.0', 'true', 'checked']:
+                        target_response = resp
+                        break
+                
+                total_behavior_count = len(df[df[behavior] == target_response])
+                total_vertical_pct = total_behavior_count / total_population if total_population > 0 else 0
+                
+                for target_segment in target_sizes.index:
+                    segment_size = target_sizes[target_segment]
+                    target_in_base = len(df[(df[target_col] == target_segment) & (df[behavior] == target_response)])
+                    
+                    vertical_pct = target_in_base / segment_size if segment_size > 0 else 0
+                    horizontal_pct = target_in_base / total_behavior_count if total_behavior_count > 0 else 0
+                    index_score = (vertical_pct / total_vertical_pct) * 100 if total_vertical_pct > 0 else 0
+                    
+                    results.append({
+                        "Behavior/Trait": f"{behavior} ({target_response})",
+                        "Segment": target_segment,
+                        "Sample (000)": target_in_base,
+                        "Vertical %": vertical_pct,
+                        "Horizontal %": horizontal_pct,
+                        "Index": index_score
+                    })
+            
+            results_df = pd.DataFrame(results)
+            
+            if results_df.empty:
+                st.warning("⚠️ No valid data could be calculated. Please check your selected rows/columns.")
+            else:
+                st.markdown("### 📊 Audience Predispositions")
+                
+                pivot_df = results_df.pivot(index="Behavior/Trait", columns="Segment", values=["Vertical %", "Index"])
+                pivot_df.columns = [f"{col[1]} | {col[0]}" for col in pivot_df.columns]
+                
+                def color_index(val):
+                    if pd.isna(val): return ''
+                    if val > 115: return 'color: #155724; background-color: #d4edda; font-weight: bold;'
+                    elif val < 85: return 'color: #721c24; background-color: #f8d7da;'
+                    return ''
+    
+                def style_simmons_table(styler):
+                    format_dict = {}
+                    for col in pivot_df.columns:
+                        if 'Vertical %' in col:
+                            format_dict[col] = "{:.1%}"
+                        elif 'Index' in col:
+                            format_dict[col] = "{:.0f}"
+                    styler.format(format_dict)
+                    
+                    index_cols = [c for c in pivot_df.columns if 'Index' in c]
+                    styler.map(color_index, subset=index_cols)
+                    return styler
+            
+                st.dataframe(pivot_df.style.pipe(style_simmons_table), use_container_width=True, height=400)
+                
+                # Save for Query Engine
+                st.session_state['crosstab_results_flat'] = results_df
+
 else:
-    st.sidebar.error("No valid columns detected! Try adjusting the 'Skip Top Rows' setting.")
-    st.stop() # Stops the rest of the app from crashing while you adjust settings
+    # --- 3. PRE-CALCULATED MAPPER ---
+    st.markdown("### 🗺️ Map Pre-Calculated Data")
+    st.info("You selected 'Pre-Calculated Export'. Map your columns below so the Quick Queries engine can read them.")
+    
+    if len(df.columns) > 0:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            trait_col = st.selectbox("Behavior/Trait Column", df.columns, index=0)
+        with col2:
+            # Try to guess the index column to save the user time
+            guess_idx = next((i for i, c in enumerate(df.columns) if 'index' in str(c).lower()), 0)
+            index_col = st.selectbox("Index Column", df.columns, index=guess_idx)
+        with col3:
+            # Try to guess the vertical % column
+            guess_vert = next((i for i, c in enumerate(df.columns) if 'vert' in str(c).lower() or '%' in str(c)), 0)
+            vert_col = st.selectbox("Vertical % Column", df.columns, index=guess_vert)
+            
+        segment_name = st.text_input("What is the name of this Target Audience?", value="Target Segment")
 
-# --- 3. THE MATH ENGINE ---
-if st.sidebar.button("Run Simmons Math Engine"):
-    with st.spinner("Crunching vertical, horizontal, and index metrics..."):
-        
-        results = []
-        total_population = len(df)
-        target_sizes = df[target_col].value_counts()
-        
-        for behavior in behavior_cols:
-            # FIX: Drop empty cells so we don't accidentally count blanks (NaNs)
-            valid_responses = df[behavior].dropna().unique()
-            if len(valid_responses) == 0:
-                continue # Skip this column if it's completely empty
-            
-            # FIX: Smartly detect the affirmative answer
-            target_response = valid_responses[0] # Fallback
-            for resp in valid_responses:
-                resp_str = str(resp).strip().lower()
-                # Look for common survey "Top Box" answers
-                if resp_str in ['agree', 'strongly agree', 'yes', '1', '1.0', 'true', 'checked']:
-                    target_response = resp
-                    break
-            
-            total_behavior_count = len(df[df[behavior] == target_response])
-            total_vertical_pct = total_behavior_count / total_population if total_population > 0 else 0
-            
-            for target_segment in target_sizes.index:
-                segment_size = target_sizes[target_segment]
-                target_in_base = len(df[(df[target_col] == target_segment) & (df[behavior] == target_response)])
+        if st.button("Load Data into Query Engine"):
+            with st.spinner("Mapping data..."):
+                clean_df = df.copy()
                 
-                vertical_pct = target_in_base / segment_size if segment_size > 0 else 0
-                horizontal_pct = target_in_base / total_behavior_count if total_behavior_count > 0 else 0
-                index_score = (vertical_pct / total_vertical_pct) * 100 if total_vertical_pct > 0 else 0
+                # Clean the Index column (remove commas, convert to numbers)
+                clean_df['Clean_Index'] = pd.to_numeric(clean_df[index_col].astype(str).str.replace(',', ''), errors='coerce')
                 
-                results.append({
-                    "Behavior/Trait": f"{behavior} ({target_response})",
-                    "Segment": target_segment,
-                    "Sample (000)": target_in_base,
-                    "Vertical %": vertical_pct,
-                    "Horizontal %": horizontal_pct,
-                    "Index": index_score
-                })
-        
-        results_df = pd.DataFrame(results)
-        
-        if results_df.empty:
-            st.warning("⚠️ No valid data could be calculated. Please check your selected rows/columns or adjust your data cleaning settings.")
-        else:
-            # --- DISPLAY RESULTS ---
-            st.markdown("### 📊 Audience Predispositions")
-            
-            pivot_df = results_df.pivot(index="Behavior/Trait", columns="Segment", values=["Vertical %", "Index"])
-            # Flatten the MultiIndex to prevent Streamlit rendering errors
-            pivot_df.columns = [f"{col[1]} | {col[0]}" for col in pivot_df.columns]
-            
-            def color_index(val):
-                if pd.isna(val): return ''
-                if val > 115: return 'color: #155724; background-color: #d4edda; font-weight: bold;'
-                elif val < 85: return 'color: #721c24; background-color: #f8d7da;'
-                return ''
+                # Clean the Vertical % column (remove % signs, convert to decimals)
+                vert_clean = clean_df[vert_col].astype(str).str.replace('%', '').str.replace(',', '')
+                vert_numeric = pd.to_numeric(vert_clean, errors='coerce')
+                
+                # If the Excel file has 25.5 instead of 0.255, divide by 100 so the math works
+                if vert_numeric.max() > 1.5:  
+                    vert_numeric = vert_numeric / 100.0
+                    
+                clean_df['Clean_Vert'] = vert_numeric
 
-            def style_simmons_table(styler):
-                format_dict = {}
-                for col in pivot_df.columns:
-                    if 'Vertical %' in col:
-                        format_dict[col] = "{:.1%}"
-                    elif 'Index' in col:
-                        format_dict[col] = "{:.0f}"
-                styler.format(format_dict)
+                # Build the exact format the Query Engine expects
+                mapped_df = pd.DataFrame({
+                    "Behavior/Trait": clean_df[trait_col],
+                    "Segment": segment_name,
+                    "Index": clean_df['Clean_Index'],
+                    "Vertical %": clean_df['Clean_Vert'],
+                    "Sample (000)": 0, # Placeholder for pre-calculated
+                    "Horizontal %": 0 # Placeholder for pre-calculated
+                }).dropna(subset=["Index"]) # Drop junk rows that don't have a valid index
                 
-                # Apply styling strictly to the flattened Index columns
-                index_cols = [c for c in pivot_df.columns if 'Index' in c]
-                styler.map(color_index, subset=index_cols)
-                return styler
-        
-        # SAFEGUARD: Ensure we only render and save state if the dataframe exists
-        if not results_df.empty:
-            st.dataframe(pivot_df.style.pipe(style_simmons_table), use_container_width=True, height=400)
-            
-            st.info("💡 **How to read this:** Notice how the **Eating is Pure** mindset drastically over-indexes on organic preferences and label checking, validating the psychographic profile.")
-            
-            # Save the flat results DataFrame for the Query Engine
-            st.session_state['crosstab_results_flat'] = results_df
+                st.session_state['crosstab_results_flat'] = mapped_df
+                st.success(f"Successfully loaded {len(mapped_df)} traits! Scroll down to use the Quick Data Queries.")
+                
+                # Show a preview of the mapped data
+                st.dataframe(mapped_df[['Behavior/Trait', 'Index', 'Vertical %']].head(5).style.format({
+                    'Vertical %': '{:.1%}', 
+                    'Index': '{:.0f}'
+                }), use_container_width=True)
+    else:
+        st.error("No valid columns detected! Try adjusting the 'Skip Top Rows' setting in the sidebar.")
 
 # --- 4. QUICK DATA QUERIES (NO AI) ---
 st.markdown("---")
