@@ -285,12 +285,14 @@ st.markdown("Ask exact, mathematically accurate questions about your run. **100%
 if 'crosstab_results_flat' in st.session_state:
     query_df = st.session_state['crosstab_results_flat']
     
-    # Pre-built questions that researchers ask most often
+    # UPGRADE: Expanded the list of pre-built strategic questions
     query_type = st.selectbox("Select a quick question to ask the data:", [
         "What are the highest indexing traits for a specific segment?",
+        "What are the lowest indexing traits (What do they actively avoid)?",
+        "What is the 'Sweet Spot' (High Index + High Reach) for a segment?",
+        "Show me everything related to a specific keyword or theme.",
         "Which segment indexes highest for a specific trait?",
-        "What is the total sample size for a specific segment?",
-        "What is the 'Sweet Spot' (High Index + High Reach) for a segment?"
+        "What is the total sample size for a specific segment?"
     ])
     
     st.markdown("<br>", unsafe_allow_html=True)
@@ -298,7 +300,42 @@ if 'crosstab_results_flat' in st.session_state:
     if query_type == "What are the highest indexing traits for a specific segment?":
         selected_segment = st.selectbox("Select Segment:", query_df['Segment'].unique())
         top_traits = query_df[query_df['Segment'] == selected_segment].sort_values(by="Index", ascending=False)
-        st.dataframe(top_traits[['Behavior/Trait', 'Index', 'Vertical %', 'Horizontal %']].head(10), use_container_width=True)
+        st.dataframe(top_traits[['Behavior/Trait', 'Index', 'Vertical %']].head(10).style.format({'Vertical %': '{:.1%}', 'Index': '{:.0f}'}), use_container_width=True)
+
+    elif query_type == "What are the lowest indexing traits (What do they actively avoid)?":
+        st.markdown("**Find Brand Rejections:** \n\nAn extremely low index (under 85) shows active rejection. These are things this audience avoids compared to the general population.")
+        selected_segment = st.selectbox("Select Segment:", query_df['Segment'].unique())
+        # Filter out 0s to avoid junk data, then sort ascending to get the lowest numbers first
+        bottom_traits = query_df[(query_df['Segment'] == selected_segment) & (query_df['Index'] > 0)].sort_values(by="Index", ascending=True)
+        st.dataframe(bottom_traits[['Behavior/Trait', 'Index', 'Vertical %']].head(10).style.format({'Vertical %': '{:.1%}', 'Index': '{:.0f}'}), use_container_width=True)
+        
+    elif query_type == "Show me everything related to a specific keyword or theme.":
+        st.markdown("**Keyword Search:** \n\nType a word like 'organic', 'TikTok', or 'family' to instantly find all related psychographics and see how they index.")
+        
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            selected_segment = st.selectbox("Select Segment:", query_df['Segment'].unique())
+        with col2:
+            search_term = st.text_input("Enter a keyword to search for:")
+            
+        if search_term:
+            # Use Pandas to safely search text, ignoring case sensitivity
+            keyword_df = query_df[
+                (query_df['Segment'] == selected_segment) & 
+                (query_df['Behavior/Trait'].astype(str).str.contains(search_term, case=False, na=False))
+            ].sort_values(by="Index", ascending=False)
+            
+            if keyword_df.empty:
+                st.warning(f"No traits found containing the word '{search_term}'.")
+            else:
+                st.success(f"Found {len(keyword_df)} traits related to '{search_term}'!")
+                st.dataframe(
+                    keyword_df[['Behavior/Trait', 'Index', 'Vertical %']].style.format({
+                        'Vertical %': '{:.1%}', 
+                        'Index': '{:.0f}'
+                    }), 
+                    use_container_width=True
+                )
         
     elif query_type == "Which segment indexes highest for a specific trait?":
         selected_trait = st.selectbox("Select Trait:", query_df['Behavior/Trait'].unique())
