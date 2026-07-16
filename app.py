@@ -90,6 +90,11 @@ if uploaded_file is not None:
     df = df.dropna(how='all', axis=1)
     df = df.dropna(how='all', axis=0)
     
+    # FIX: Simmons exports leave the first column header blank. 
+    # Rename it before the cleaner deletes it!
+    if len(df.columns) > 0 and str(df.columns[0]).startswith('Unnamed'):
+        df = df.rename(columns={df.columns[0]: 'Behaviors/Traits'})
+    
     # AUTOMATIC CLEANING: Remove 'Unnamed' artifact columns
     if drop_unnamed:
         df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
