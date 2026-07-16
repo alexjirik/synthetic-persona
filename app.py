@@ -210,7 +210,8 @@ if 'crosstab_results_flat' in st.session_state:
     query_type = st.selectbox("Select a quick question to ask the data:", [
         "What are the highest indexing traits for a specific segment?",
         "Which segment indexes highest for a specific trait?",
-        "What is the total sample size for a specific segment?"
+        "What is the total sample size for a specific segment?",
+        "What is the 'Sweet Spot' (High Index + High Reach) for a segment?"
     ])
     
     st.markdown("<br>", unsafe_allow_html=True)
@@ -229,6 +230,36 @@ if 'crosstab_results_flat' in st.session_state:
         selected_segment = st.selectbox("Select Segment:", query_df['Segment'].unique())
         base_size = len(df[df[target_col] == selected_segment])
         st.metric(label=f"Total Respondents in '{selected_segment}'", value=f"{base_size:,}")
+        
+    elif query_type == "What is the 'Sweet Spot' (High Index + High Reach) for a segment?":
+        st.markdown("**Find the 'Sweet Spot'** \n\nA high index shows predisposition, but a high vertical % ensures there are enough people to make it worth your budget. Filter for both.")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            selected_segment = st.selectbox("Select Segment:", query_df['Segment'].unique())
+        with col2:
+            min_index = st.number_input("Minimum Index Score", min_value=0, value=115, step=5)
+        with col3:
+            min_vertical = st.number_input("Minimum Vertical % (Reach)", min_value=0.0, value=25.0, step=5.0, format="%.1f")
+        
+        # Apply strict math filters
+        sweet_spot_df = query_df[
+            (query_df['Segment'] == selected_segment) & 
+            (query_df['Index'] >= min_index) & 
+            (query_df['Vertical %'] >= (min_vertical / 100.0))
+        ].sort_values(by="Index", ascending=False)
+        
+        if sweet_spot_df.empty:
+            st.warning(f"No traits found for '{selected_segment}' that meet both criteria. Try lowering your thresholds.")
+        else:
+            st.success(f"Found {len(sweet_spot_df)} traits hitting the sweet spot!")
+            st.dataframe(
+                sweet_spot_df[['Behavior/Trait', 'Index', 'Vertical %']].style.format({
+                    'Vertical %': '{:.1%}', 
+                    'Index': '{:.0f}'
+                }), 
+                use_container_width=True
+            )
 
 else:
     st.info("👆 Run the Simmons Math Engine above to unlock quick queries!")
